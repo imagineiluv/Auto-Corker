@@ -1,0 +1,36 @@
+﻿@page "/settings"
+
+<section class="page-header">
+    <div>
+        <span class="page-kicker">System</span>
+        <h1>Settings</h1>
+        <p class="page-subtitle">Configure models, repositories, and agent behavior.</p>
+    </div>
+    <button class="ghost-button" type="button">Save</button>
+</section>
+
+<section class="page-content">
+    <div class="card-grid">
+        <article class="info-card">
+            <header>
+                <h3>Model Selection</h3>
+                <span class="pill">LFM2</span>
+            </header>
+            <p>Use GGUF models stored in the local models directory.</p>
+        </article>
+        <article class="info-card">
+            <header>
+                <h3>Repository Path</h3>
+                <span class="pill muted">/repos/corker</span>
+            </header>
+            <p>Active worktree root for agent operations.</p>
+        </article>
+        <article class="info-card">
+            <header>
+                <h3>Validation Mode</h3>
+                <span class="pill warning">Sandboxed</span>
+            </header>
+            <p>Run tests inside an isolated environment.</p>
+        </article>
+    </div>
+</section>

@@ -1,0 +1,36 @@
+﻿@page "/worktrees"
+
+<section class="page-header">
+    <div>
+        <span class="page-kicker">Tools</span>
+        <h1>Worktrees</h1>
+        <p class="page-subtitle">Manage isolated branches created by the agents.</p>
+    </div>
+    <button class="primary-button" type="button">+ New Worktree</button>
+</section>
+
+<section class="page-content">
+    <div class="card-grid">
+        <article class="info-card">
+            <header>
+                <h3>feature/ui-parity</h3>
+                <span class="pill green">Active</span>
+            </header>
+            <p>Workspace for UI alignment and layout refinement.</p>
+        </article>
+        <article class="info-card">
+            <header>
+                <h3>feature/agent-logs</h3>
+                <span class="pill">Idle</span>
+            </header>
+            <p>Pending agent terminal telemetry integration.</p>
+        </article>
+        <article class="info-card">
+            <header>
+                <h3>fix/worktree-cleanup</h3>
+                <span class="pill warning">Stale</span>
+            </header>
+            <p>Candidate for cleanup after validation.</p>
+        </article>
+    </div>
+</section>

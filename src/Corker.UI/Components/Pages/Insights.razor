@@ -1,0 +1,36 @@
+﻿@page "/insights"
+
+<section class="page-header">
+    <div>
+        <span class="page-kicker">Workspace</span>
+        <h1>Insights</h1>
+        <p class="page-subtitle">High-level metrics, task throughput, and agent utilization.</p>
+    </div>
+    <button class="ghost-button" type="button">Export</button>
+</section>
+
+<section class="page-content">
+    <div class="card-grid">
+        <article class="info-card">
+            <header>
+                <h3>Tasks Completed</h3>
+                <span class="metric-value">42</span>
+            </header>
+            <p>Completed tasks over the last 7 days.</p>
+        </article>
+        <article class="info-card">
+            <header>
+                <h3>Average Cycle Time</h3>
+                <span class="metric-value">3h 18m</span>
+            </header>
+            <p>Planning → Done in the current workspace.</p>
+        </article>
+        <article class="info-card">
+            <header>
+                <h3>Agent Utilization</h3>
+                <span class="metric-value">78%</span>
+            </header>
+            <p>Average agent activity across the last 24 hours.</p>
+        </article>
+    </div>
+</section>
