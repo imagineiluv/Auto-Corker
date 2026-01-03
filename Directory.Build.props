@@ -5,15 +5,16 @@
   -->
   <PropertyGroup>
     <!-- Modern C# Standards -->
-    <TargetFramework>net8.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <MauiVersion>8.0.40</MauiVersion>
 
     <!--
       ⚡ Bolt: Performance Optimizations
       1. TieredPGO: Enables Tiered Profile-Guided Optimization for better runtime code generation.
-      2. GarbageCollectionAdaptationMode: Enables Dynamic Adaptive Sizing (DATAS) for GC to adapt to memory pressure.
+      2. GarbageCollectionAdaptationMode: Enables Dynamic Adaptive Sizing (DATAS) for GC to adapt to
+    memory pressure.
       3. AccelerateBuildsInVisualStudio: Faster incremental builds for developers.
     -->
     <TieredPGO>true</TieredPGO>
@@ -24,5 +25,8 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <AnalysisLevel>latest</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Fix for LLamaSharp duplicate DLLs -->
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
   </PropertyGroup>
 </Project>
