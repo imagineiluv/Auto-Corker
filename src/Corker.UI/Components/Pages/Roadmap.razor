@@ -10,7 +10,7 @@
         <p class="page-subtitle">Strategic milestones and delivery sequencing.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button">Share</button>
+        <button class="ghost-button" type="button" @onclick="ShareAsync">Share</button>
         <button class="primary-button" type="button" @onclick="GenerateRoadmapAsync">Generate</button>
     </div>
 </section>
@@ -110,6 +110,12 @@ else
     private async Task GenerateRoadmapAsync()
     {
         await DashboardService.GenerateRoadmapAsync();
+        await ReloadAsync();
+    }
+
+    private async Task ShareAsync()
+    {
+        await DashboardService.ShareRoadmapAsync();
         await ReloadAsync();
     }
 

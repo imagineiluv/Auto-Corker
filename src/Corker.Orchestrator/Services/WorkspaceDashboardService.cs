@@ -25,6 +25,16 @@ public class WorkspaceDashboardService
     private readonly List<RoadmapPhase> _roadmapPhases = new();
     private readonly List<ContextSource> _contextSources = new();
     private readonly List<MemoryItem> _memoryItems = new();
+    private readonly List<InsightMetric> _insightMetrics = new();
+    private int _filesIndexed;
+    private string _contextStatus = "Healthy";
+    private string _contextStatusClass = "green";
+    private string _contextLastUpdatedLabel = "12m ago";
+    private int _worktreeCounter = 1;
+    private int _terminalCounter = 1;
+    private bool _changelogExpanded;
+    private bool _changelogSubscribed;
+    private bool _roadmapShared;
     private bool _seeded;
 
     public WorkspaceDashboardService(
@@ -108,6 +118,51 @@ public class WorkspaceDashboardService
         return _issues.ToList();
     }
 
+    public async Task<IReadOnlyList<IssueItem>> InvestigateGithubIssueAsync(int issueNumber)
+    {
+        await EnsureSeededAsync();
+        UpdateIssueList(_issues, issueNumber, issue => issue with
+        {
+            Status = "Investigating",
+            StatusClass = "purple",
+            Summary = "Investigation queued for agent triage."
+        });
+        return _issues.ToList();
+    }
+
+    public async Task<IReadOnlyList<IssueItem>> CreateTaskFromGithubIssueAsync(int issueNumber)
+    {
+        await EnsureSeededAsync();
+        var issue = _issues.FirstOrDefault(candidate => candidate.Number == issueNumber);
+        if (issue is null)
+        {
+            return _issues.ToList();
+        }
+
+        var taskId = await CreateTaskAsync($"Issue #{issue.Number} - {issue.Title}", issue.Description);
+        var linkedTask = $"Task #{taskId.ToString("N")[..6]}";
+        UpdateIssueList(_issues, issueNumber, current => current with
+        {
+            Status = "In Progress",
+            StatusClass = "warning",
+            LinkedTask = linkedTask,
+            Summary = "Task created from issue triage."
+        });
+        return _issues.ToList();
+    }
+
+    public async Task<IReadOnlyList<IssueItem>> AutoFixGithubIssueAsync(int issueNumber)
+    {
+        await EnsureSeededAsync();
+        UpdateIssueList(_issues, issueNumber, issue => issue with
+        {
+            Status = "Fixing",
+            StatusClass = "warning",
+            Summary = "Auto-fix run queued for validation."
+        });
+        return _issues.ToList();
+    }
+
     public async Task<IReadOnlyList<IssueItem>> GetGitLabIssuesAsync()
     {
         await EnsureSeededAsync();
@@ -131,9 +186,97 @@ public class WorkspaceDashboardService
         return _gitLabIssues.ToList();
     }
 
+    public async Task<IReadOnlyList<IssueItem>> InvestigateGitLabIssueAsync(int issueNumber)
+    {
+        await EnsureSeededAsync();
+        UpdateIssueList(_gitLabIssues, issueNumber, issue => issue with
+        {
+            Status = "Investigating",
+            StatusClass = "purple",
+            Summary = "Investigation queued for GitLab issue."
+        });
+        return _gitLabIssues.ToList();
+    }
+
+    public async Task<IReadOnlyList<IssueItem>> CreateTaskFromGitLabIssueAsync(int issueNumber)
+    {
+        await EnsureSeededAsync();
+        var issue = _gitLabIssues.FirstOrDefault(candidate => candidate.Number == issueNumber);
+        if (issue is null)
+        {
+            return _gitLabIssues.ToList();
+        }
+
+        var taskId = await CreateTaskAsync($"GitLab Issue #{issue.Number} - {issue.Title}", issue.Description);
+        var linkedTask = $"Task #{taskId.ToString("N")[..6]}";
+        UpdateIssueList(_gitLabIssues, issueNumber, current => current with
+        {
+            Status = "In Progress",
+            StatusClass = "warning",
+            LinkedTask = linkedTask,
+            Summary = "Task created from GitLab issue."
+        });
+        return _gitLabIssues.ToList();
+    }
+
+    public async Task<IReadOnlyList<IssueItem>> AutoFixGitLabIssueAsync(int issueNumber)
+    {
+        await EnsureSeededAsync();
+        UpdateIssueList(_gitLabIssues, issueNumber, issue => issue with
+        {
+            Status = "Fixing",
+            StatusClass = "warning",
+            Summary = "Auto-fix run queued for GitLab issue."
+        });
+        return _gitLabIssues.ToList();
+    }
+
     public async Task<IReadOnlyList<PullRequestItem>> GetPullRequestsAsync()
     {
         await EnsureSeededAsync();
+        return _pullRequests.ToList();
+    }
+
+    public async Task<IReadOnlyList<PullRequestItem>> OpenPullRequestReviewAsync(int pullRequestNumber)
+    {
+        await EnsureSeededAsync();
+        UpdatePullRequestList(_pullRequests, pullRequestNumber, pr => pr with
+        {
+            Status = "Review",
+            StatusClass = "purple",
+            Summary = "Review session opened."
+        });
+        return _pullRequests.ToList();
+    }
+
+    public async Task<IReadOnlyList<PullRequestItem>> CreateTaskFromPullRequestAsync(int pullRequestNumber)
+    {
+        await EnsureSeededAsync();
+        var pullRequest = _pullRequests.FirstOrDefault(pr => pr.Number == pullRequestNumber);
+        if (pullRequest is null)
+        {
+            return _pullRequests.ToList();
+        }
+
+        await CreateTaskAsync($"PR #{pullRequest.Number} - {pullRequest.Title}", pullRequest.Summary);
+        UpdatePullRequestList(_pullRequests, pullRequestNumber, pr => pr with
+        {
+            Status = "In Progress",
+            StatusClass = "warning",
+            Summary = "Task created for PR follow-up."
+        });
+        return _pullRequests.ToList();
+    }
+
+    public async Task<IReadOnlyList<PullRequestItem>> AutoReviewPullRequestAsync(int pullRequestNumber)
+    {
+        await EnsureSeededAsync();
+        UpdatePullRequestList(_pullRequests, pullRequestNumber, pr => pr with
+        {
+            Status = "Reviewing",
+            StatusClass = "warning",
+            Summary = "Auto-review running in the background."
+        });
         return _pullRequests.ToList();
     }
 
@@ -143,9 +286,77 @@ public class WorkspaceDashboardService
         return _mergeRequests.ToList();
     }
 
+    public async Task<IReadOnlyList<MergeRequestItem>> OpenMergeRequestReviewAsync(int mergeRequestNumber)
+    {
+        await EnsureSeededAsync();
+        UpdateMergeRequestList(_mergeRequests, mergeRequestNumber, mr => mr with
+        {
+            Status = "Review",
+            StatusClass = "purple",
+            Summary = "Review session opened."
+        });
+        return _mergeRequests.ToList();
+    }
+
+    public async Task<IReadOnlyList<MergeRequestItem>> CreateTaskFromMergeRequestAsync(int mergeRequestNumber)
+    {
+        await EnsureSeededAsync();
+        var mergeRequest = _mergeRequests.FirstOrDefault(mr => mr.Number == mergeRequestNumber);
+        if (mergeRequest is null)
+        {
+            return _mergeRequests.ToList();
+        }
+
+        await CreateTaskAsync($"MR #{mergeRequest.Number} - {mergeRequest.Title}", mergeRequest.Summary);
+        UpdateMergeRequestList(_mergeRequests, mergeRequestNumber, mr => mr with
+        {
+            Status = "In Progress",
+            StatusClass = "warning",
+            Summary = "Task created for MR follow-up."
+        });
+        return _mergeRequests.ToList();
+    }
+
+    public async Task<IReadOnlyList<MergeRequestItem>> AutoReviewMergeRequestAsync(int mergeRequestNumber)
+    {
+        await EnsureSeededAsync();
+        UpdateMergeRequestList(_mergeRequests, mergeRequestNumber, mr => mr with
+        {
+            Status = "Reviewing",
+            StatusClass = "warning",
+            Summary = "Auto-review running in the background."
+        });
+        return _mergeRequests.ToList();
+    }
+
     public async Task<IReadOnlyList<AgentToolItem>> GetAgentToolsAsync()
     {
         await EnsureSeededAsync();
+        return _agentTools.ToList();
+    }
+
+    public async Task<IReadOnlyList<AgentToolItem>> ShowAgentToolDetailsAsync(string toolName)
+    {
+        await EnsureSeededAsync();
+        UpdateAgentToolList(toolName, tool => tool with
+        {
+            Status = "Inspecting",
+            StatusClass = "purple",
+            Summary = $"{tool.Summary} (Detail panel opened)"
+        });
+        return _agentTools.ToList();
+    }
+
+    public async Task<IReadOnlyList<AgentToolItem>> RunAgentToolAsync(string toolName)
+    {
+        await EnsureSeededAsync();
+        UpdateAgentToolList(toolName, tool => tool.ActionLabel switch
+        {
+            "Run" => tool with { Status = "Running", StatusClass = "green", ActionLabel = "View" },
+            "View" => tool with { Status = "Reviewing", StatusClass = "purple", ActionLabel = "Run" },
+            "Configure" => tool with { Status = "Configured", StatusClass = "green", ActionLabel = "Run" },
+            _ => tool with { Status = "Queued", StatusClass = "muted" }
+        });
         return _agentTools.ToList();
     }
 
@@ -155,9 +366,87 @@ public class WorkspaceDashboardService
         return _worktrees.ToList();
     }
 
+    public async Task<IReadOnlyList<WorktreeItem>> CleanupWorktreesAsync()
+    {
+        await EnsureSeededAsync();
+        _worktrees.RemoveAll(worktree => worktree.Status.Equals("Stale", StringComparison.OrdinalIgnoreCase));
+        return _worktrees.ToList();
+    }
+
+    public async Task<IReadOnlyList<WorktreeItem>> CreateWorktreeAsync()
+    {
+        await EnsureSeededAsync();
+        var worktreeName = $"feature/auto-worktree-{_worktreeCounter:00}";
+        _worktreeCounter += 1;
+        _worktrees.Insert(0, new WorktreeItem(
+            worktreeName,
+            "New worktree created for automation tasks.",
+            "Active",
+            "green",
+            "Updated just now",
+            "0 tasks"));
+        return _worktrees.ToList();
+    }
+
     public async Task<IReadOnlyList<TerminalSnapshot>> GetTerminalsAsync()
     {
         await EnsureSeededAsync();
+        return _terminals.ToList();
+    }
+
+    public async Task<IReadOnlyList<TerminalSnapshot>> OpenFileExplorerAsync()
+    {
+        await EnsureSeededAsync();
+        _terminals.Insert(0, new TerminalSnapshot(
+            "File Explorer",
+            "Explorer",
+            "Active",
+            "green",
+            new[]
+            {
+                "$ ls",
+                "src/ docs/ Corker.sln",
+                "✔ File explorer opened"
+            },
+            "Opened just now"));
+        return _terminals.ToList();
+    }
+
+    public async Task<IReadOnlyList<TerminalSnapshot>> RestoreTerminalSessionAsync()
+    {
+        await EnsureSeededAsync();
+        _terminals.Insert(0, new TerminalSnapshot(
+            "Restored Session",
+            "Multi",
+            "Restored",
+            "purple",
+            new[]
+            {
+                "$ restore session --latest",
+                "✔ Session restored",
+                "Ready for commands"
+            },
+            "Restored just now"));
+        return _terminals.ToList();
+    }
+
+    public async Task<IReadOnlyList<TerminalSnapshot>> CreateTerminalAsync()
+    {
+        await EnsureSeededAsync();
+        var terminalName = $"Agent Terminal {_terminalCounter}";
+        _terminalCounter += 1;
+        _terminals.Insert(0, new TerminalSnapshot(
+            terminalName,
+            "Multi",
+            "Idle",
+            "green",
+            new[]
+            {
+                "$ cd /workspace/auto-corker",
+                "$ run task status",
+                "✔ Ready"
+            },
+            "Started just now"));
         return _terminals.ToList();
     }
 
@@ -167,16 +456,42 @@ public class WorkspaceDashboardService
         return _changelog.ToList();
     }
 
+    public async Task<IReadOnlyList<ChangelogEntry>> LoadFullChangelogAsync()
+    {
+        await EnsureSeededAsync();
+        if (_changelogExpanded)
+        {
+            return _changelog.ToList();
+        }
+
+        _changelogExpanded = true;
+        _changelog.AddRange(new List<ChangelogEntry>
+        {
+            new("v0.2.9", "Git provider connection wizard and diagnostics.", "Archived", "muted"),
+            new("v0.2.7", "Agent terminal session snapshots and reload.", "Archived", "muted")
+        });
+        return _changelog.ToList();
+    }
+
+    public async Task<bool> SubscribeToChangelogAsync()
+    {
+        await EnsureSeededAsync();
+        _changelogSubscribed = true;
+        _changelog.Insert(0, new ChangelogEntry("Subscription", "You will now receive release notifications.", "Active", "green"));
+        return _changelogSubscribed;
+    }
+
     public async Task<IReadOnlyList<InsightMetric>> GetInsightsAsync()
     {
         await EnsureSeededAsync();
-        var metrics = new List<InsightMetric>
-        {
-            new("Tasks Completed", "42", "Completed tasks over the last 7 days.", 72),
-            new("Average Cycle Time", "3h 18m", "Planning → Done in the current workspace.", 58),
-            new("Agent Utilization", "78%", "Average agent activity across the last 24 hours.", 78)
-        };
-        return metrics;
+        return _insightMetrics.ToList();
+    }
+
+    public async Task<IReadOnlyList<InsightMetric>> ExportInsightsAsync()
+    {
+        await EnsureSeededAsync();
+        _insightMetrics.Insert(0, new InsightMetric("Last Export", "Just now", "Insights exported for reporting.", 100));
+        return _insightMetrics.ToList();
     }
 
     public async Task<IReadOnlyList<RoadmapGroup>> GetRoadmapByPriorityAsync()
@@ -218,22 +533,92 @@ public class WorkspaceDashboardService
         _roadmapGroups.Add(new RoadmapGroup("Won't Have", "muted", new List<RoadmapItem> { new("No items yet", string.Empty) }));
     }
 
+    public async Task ShareRoadmapAsync()
+    {
+        await EnsureSeededAsync();
+        if (_roadmapShared)
+        {
+            return;
+        }
+
+        _roadmapShared = true;
+        var targetGroup = _roadmapGroups.FirstOrDefault(group => group.Title.Contains("Could", StringComparison.OrdinalIgnoreCase));
+        if (targetGroup is null)
+        {
+            return;
+        }
+
+        var updatedItems = targetGroup.Items.ToList();
+        updatedItems.Insert(0, new RoadmapItem("Shared roadmap snapshot", "Just now"));
+        var updatedGroup = targetGroup with { Items = updatedItems };
+        var index = _roadmapGroups.IndexOf(targetGroup);
+        if (index >= 0)
+        {
+            _roadmapGroups[index] = updatedGroup;
+        }
+    }
+
     public async Task<ContextSummary> GetContextSummaryAsync()
     {
         await EnsureSeededAsync();
         var summary = new ContextSummary(
-            "Healthy",
-            "green",
-            2418,
+            _contextStatus,
+            _contextStatusClass,
+            _filesIndexed,
             _contextSources.Count,
-            "12m ago",
+            _contextLastUpdatedLabel,
             _contextSources.ToList());
         return summary;
+    }
+
+    public async Task<ContextSummary> AddContextSourceAsync()
+    {
+        await EnsureSeededAsync();
+        var sourceName = $"reference-notes-{_contextSources.Count + 1:00}";
+        _contextSources.Insert(0, new ContextSource(sourceName, "Imported reference notes for agents.", "Queued", "muted"));
+        _contextStatus = "Syncing";
+        _contextStatusClass = "warning";
+        _contextLastUpdatedLabel = "Just now";
+        return await GetContextSummaryAsync();
+    }
+
+    public async Task<ContextSummary> RebuildContextIndexAsync()
+    {
+        await EnsureSeededAsync();
+        _contextStatus = "Rebuilding";
+        _contextStatusClass = "warning";
+        _contextLastUpdatedLabel = "Just now";
+        _filesIndexed += 42;
+        return await GetContextSummaryAsync();
+    }
+
+    public async Task<ContextSummary> OpenContextIndexAsync()
+    {
+        await EnsureSeededAsync();
+        _contextStatus = "Viewing";
+        _contextStatusClass = "green";
+        _contextLastUpdatedLabel = "Just now";
+        return await GetContextSummaryAsync();
     }
 
     public async Task<MemoryOverview> GetMemoryOverviewAsync()
     {
         await EnsureSeededAsync();
+        return new MemoryOverview(_memoryItems.Count, _memoryItems.ToList());
+    }
+
+    public async Task<MemoryOverview> ManageMemoryCardsAsync()
+    {
+        await EnsureSeededAsync();
+        if (_memoryItems.Count > 0)
+        {
+            var memory = _memoryItems[0];
+            var updated = memory.Status == "Pinned"
+                ? memory with { Status = "Recent", StatusClass = string.Empty }
+                : memory with { Status = "Pinned", StatusClass = "green" };
+            _memoryItems[0] = updated;
+        }
+
         return new MemoryOverview(_memoryItems.Count, _memoryItems.ToList());
     }
 
@@ -448,11 +833,23 @@ public class WorkspaceDashboardService
             new("agent-playbooks", "Runbooks and operational guidelines.", "Needs Review", "warning")
         });
 
+        _filesIndexed = 2418;
+        _contextStatus = "Healthy";
+        _contextStatusClass = "green";
+        _contextLastUpdatedLabel = "12m ago";
+
         _memoryItems.AddRange(new List<MemoryItem>
         {
             new("Testing pipeline update", "Remember to run dotnet build before committing.", "Pinned", "green"),
             new("UI parity checklist", "Align tab layout, cards, and detail panels.", "Recent", string.Empty),
             new("Terminal session logs", "Latest agent output for task #281.", "Needs Review", "warning")
+        });
+
+        _insightMetrics.AddRange(new List<InsightMetric>
+        {
+            new("Tasks Completed", "42", "Completed tasks over the last 7 days.", 72),
+            new("Average Cycle Time", "3h 18m", "Planning → Done in the current workspace.", 58),
+            new("Agent Utilization", "78%", "Average agent activity across the last 24 hours.", 78)
         });
     }
 
@@ -539,6 +936,50 @@ public class WorkspaceDashboardService
         }
 
         return results;
+    }
+
+    private static void UpdateIssueList(List<IssueItem> issues, int issueNumber, Func<IssueItem, IssueItem> update)
+    {
+        var index = issues.FindIndex(issue => issue.Number == issueNumber);
+        if (index < 0)
+        {
+            return;
+        }
+
+        issues[index] = update(issues[index]);
+    }
+
+    private static void UpdatePullRequestList(List<PullRequestItem> pullRequests, int pullRequestNumber, Func<PullRequestItem, PullRequestItem> update)
+    {
+        var index = pullRequests.FindIndex(pr => pr.Number == pullRequestNumber);
+        if (index < 0)
+        {
+            return;
+        }
+
+        pullRequests[index] = update(pullRequests[index]);
+    }
+
+    private static void UpdateMergeRequestList(List<MergeRequestItem> mergeRequests, int mergeRequestNumber, Func<MergeRequestItem, MergeRequestItem> update)
+    {
+        var index = mergeRequests.FindIndex(mr => mr.Number == mergeRequestNumber);
+        if (index < 0)
+        {
+            return;
+        }
+
+        mergeRequests[index] = update(mergeRequests[index]);
+    }
+
+    private void UpdateAgentToolList(string toolName, Func<AgentToolItem, AgentToolItem> update)
+    {
+        var index = _agentTools.FindIndex(tool => tool.Name == toolName);
+        if (index < 0)
+        {
+            return;
+        }
+
+        _agentTools[index] = update(_agentTools[index]);
     }
 
     private static IReadOnlyList<(string Title, string Impact)> ParseDelimitedItems(string response, int max)

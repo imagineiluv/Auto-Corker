@@ -10,7 +10,7 @@
     </div>
     <div class="page-actions">
         <button class="ghost-button" type="button" @onclick="RefreshAsync">Refresh</button>
-        <button class="primary-button" type="button">Add Source</button>
+        <button class="primary-button" type="button" @onclick="AddSourceAsync">Add Source</button>
     </div>
 </section>
 
@@ -51,8 +51,8 @@
                         </div>
                     </div>
                     <div class="panel-actions">
-                        <button class="ghost-button" type="button">Rebuild</button>
-                        <button class="primary-button" type="button">Open Index</button>
+                        <button class="ghost-button" type="button" @onclick="RebuildIndexAsync">Rebuild</button>
+                        <button class="primary-button" type="button" @onclick="OpenIndexAsync">Open Index</button>
                     </div>
                 </div>
             </div>
@@ -116,7 +116,7 @@ else
                         <h3>Memory Cards</h3>
                         <p>Curated insights captured during task runs.</p>
                     </div>
-                    <button class="ghost-button" type="button">Manage</button>
+                    <button class="ghost-button" type="button" @onclick="ManageMemoryCardsAsync">Manage</button>
                 </div>
                 <div class="panel-body">
                     <div class="card-grid">
@@ -162,6 +162,26 @@ else
     {
         _contextSummary = await DashboardService.GetContextSummaryAsync();
         _memoryOverview = await DashboardService.GetMemoryOverviewAsync();
+    }
+
+    private async Task AddSourceAsync()
+    {
+        _contextSummary = await DashboardService.AddContextSourceAsync();
+    }
+
+    private async Task RebuildIndexAsync()
+    {
+        _contextSummary = await DashboardService.RebuildContextIndexAsync();
+    }
+
+    private async Task OpenIndexAsync()
+    {
+        _contextSummary = await DashboardService.OpenContextIndexAsync();
+    }
+
+    private async Task ManageMemoryCardsAsync()
+    {
+        _memoryOverview = await DashboardService.ManageMemoryCardsAsync();
     }
 
     private void SetActiveTab(string tab)

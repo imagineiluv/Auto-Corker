@@ -9,7 +9,7 @@
         <p class="page-subtitle">High-level metrics, task throughput, and agent utilization.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button">Export</button>
+        <button class="ghost-button" type="button" @onclick="ExportAsync">Export</button>
         <button class="primary-button" type="button" @onclick="ReloadAsync">Refresh</button>
     </div>
 </section>
@@ -69,12 +69,12 @@
 
         <div class="panel">
             <div class="panel-header">
-                <div>
-                    <h3>Agent Load</h3>
-                    <p>Current utilization and queue health.</p>
-                </div>
-                <button class="ghost-button" type="button">View details</button>
+            <div>
+                <h3>Agent Load</h3>
+                <p>Current utilization and queue health.</p>
             </div>
+            <button class="ghost-button" type="button" @onclick="ViewAgentDetails">@_agentDetailsLabel</button>
+        </div>
             <div class="panel-body">
                 <div class="stat-grid">
                     <div class="stat-card">
@@ -100,6 +100,7 @@
 
 @code {
     private IReadOnlyList<InsightMetric> _metrics = Array.Empty<InsightMetric>();
+    private string _agentDetailsLabel = "View details";
 
     protected override async Task OnInitializedAsync()
     {
@@ -109,5 +110,15 @@
     private async Task ReloadAsync()
     {
         _metrics = await DashboardService.GetInsightsAsync();
+    }
+
+    private async Task ExportAsync()
+    {
+        _metrics = await DashboardService.ExportInsightsAsync();
+    }
+
+    private void ViewAgentDetails()
+    {
+        _agentDetailsLabel = "Details loaded";
     }
 }
