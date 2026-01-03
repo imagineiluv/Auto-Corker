@@ -9,9 +9,9 @@
         <p class="page-subtitle">Live command outputs and agent status snapshots.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button">File Explorer</button>
-        <button class="ghost-button" type="button">Restore Session</button>
-        <button class="primary-button" type="button">+ New Terminal</button>
+        <button class="ghost-button" type="button" @onclick="OpenFileExplorerAsync">File Explorer</button>
+        <button class="ghost-button" type="button" @onclick="RestoreSessionAsync">Restore Session</button>
+        <button class="primary-button" type="button" @onclick="CreateTerminalAsync">+ New Terminal</button>
     </div>
 </section>
 
@@ -46,5 +46,20 @@
     protected override async Task OnInitializedAsync()
     {
         _terminals = await DashboardService.GetTerminalsAsync();
+    }
+
+    private async Task OpenFileExplorerAsync()
+    {
+        _terminals = await DashboardService.OpenFileExplorerAsync();
+    }
+
+    private async Task RestoreSessionAsync()
+    {
+        _terminals = await DashboardService.RestoreTerminalSessionAsync();
+    }
+
+    private async Task CreateTerminalAsync()
+    {
+        _terminals = await DashboardService.CreateTerminalAsync();
     }
 }

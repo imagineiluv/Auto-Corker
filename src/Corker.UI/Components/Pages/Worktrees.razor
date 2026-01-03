@@ -9,8 +9,8 @@
         <p class="page-subtitle">Manage isolated branches created by the agents.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button" @onclick="ReloadAsync">Cleanup</button>
-        <button class="primary-button" type="button">+ New Worktree</button>
+        <button class="ghost-button" type="button" @onclick="CleanupAsync">Cleanup</button>
+        <button class="primary-button" type="button" @onclick="CreateWorktreeAsync">+ New Worktree</button>
     </div>
 </section>
 
@@ -44,5 +44,15 @@
     private async Task ReloadAsync()
     {
         _worktrees = await DashboardService.GetWorktreesAsync();
+    }
+
+    private async Task CleanupAsync()
+    {
+        _worktrees = await DashboardService.CleanupWorktreesAsync();
+    }
+
+    private async Task CreateWorktreeAsync()
+    {
+        _worktrees = await DashboardService.CreateWorktreeAsync();
     }
 }

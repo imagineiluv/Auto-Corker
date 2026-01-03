@@ -2,6 +2,7 @@
 @using System.Linq
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@inject NavigationManager NavigationManager
 
 <section class="page-header">
     <div>
@@ -10,7 +11,7 @@
         <p class="page-subtitle">Track merge requests and pipeline health.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button">Settings</button>
+        <button class="ghost-button" type="button" @onclick="OpenSettings">Settings</button>
         <button class="primary-button" type="button" @onclick="ReloadAsync">Refresh</button>
     </div>
 </section>
@@ -60,7 +61,7 @@
                 <h3>Merge Request Detail</h3>
                 <p>Review checks, labels, and branch targets.</p>
             </div>
-            <button class="ghost-button" type="button">Open Review</button>
+            <button class="ghost-button" type="button" @onclick="OpenReviewAsync">Open Review</button>
         </div>
         <div class="panel-body">
             @if (_selectedMergeRequest is null)
@@ -97,8 +98,8 @@
                         </div>
                     </div>
                     <div class="panel-actions">
-                        <button class="ghost-button" type="button">Create Task</button>
-                        <button class="primary-button" type="button">Auto Review</button>
+                        <button class="ghost-button" type="button" @onclick="CreateTaskAsync">Create Task</button>
+                        <button class="primary-button" type="button" @onclick="AutoReviewAsync">Auto Review</button>
                     </div>
                 </div>
             }
@@ -148,6 +149,44 @@
     private async Task ReloadAsync()
     {
         _mergeRequests = (await DashboardService.GetMergeRequestsAsync()).ToList();
+    }
+
+    private void OpenSettings()
+    {
+        NavigationManager.NavigateTo("/settings?tab=project");
+    }
+
+    private async Task OpenReviewAsync()
+    {
+        if (_selectedMergeRequest is null)
+        {
+            return;
+        }
+
+        _mergeRequests = (await DashboardService.OpenMergeRequestReviewAsync(_selectedMergeRequest.Number)).ToList();
+        _selectedMergeRequest = _mergeRequests.FirstOrDefault(mr => mr.Number == _selectedMergeRequest.Number);
+    }
+
+    private async Task CreateTaskAsync()
+    {
+        if (_selectedMergeRequest is null)
+        {
+            return;
+        }
+
+        _mergeRequests = (await DashboardService.CreateTaskFromMergeRequestAsync(_selectedMergeRequest.Number)).ToList();
+        _selectedMergeRequest = _mergeRequests.FirstOrDefault(mr => mr.Number == _selectedMergeRequest.Number);
+    }
+
+    private async Task AutoReviewAsync()
+    {
+        if (_selectedMergeRequest is null)
+        {
+            return;
+        }
+
+        _mergeRequests = (await DashboardService.AutoReviewMergeRequestAsync(_selectedMergeRequest.Number)).ToList();
+        _selectedMergeRequest = _mergeRequests.FirstOrDefault(mr => mr.Number == _selectedMergeRequest.Number);
     }
 
     private void SelectMergeRequest(MergeRequestItem mergeRequest)

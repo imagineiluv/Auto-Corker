@@ -2,6 +2,7 @@
 @using System.Linq
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@inject NavigationManager NavigationManager
 
 <section class="page-header">
     <div>
@@ -10,7 +11,7 @@
         <p class="page-subtitle">Review open pull requests and automation status.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button">Settings</button>
+        <button class="ghost-button" type="button" @onclick="OpenSettings">Settings</button>
         <button class="primary-button" type="button" @onclick="ReloadAsync">Refresh</button>
     </div>
 </section>
@@ -60,7 +61,7 @@
                 <h3>Pull Request Detail</h3>
                 <p>Review checks, labels, and branch targets.</p>
             </div>
-            <button class="ghost-button" type="button">Open Review</button>
+            <button class="ghost-button" type="button" @onclick="OpenReviewAsync">Open Review</button>
         </div>
         <div class="panel-body">
             @if (_selectedPullRequest is null)
@@ -97,8 +98,8 @@
                         </div>
                     </div>
                     <div class="panel-actions">
-                        <button class="ghost-button" type="button">Create Task</button>
-                        <button class="primary-button" type="button">Auto Review</button>
+                        <button class="ghost-button" type="button" @onclick="CreateTaskAsync">Create Task</button>
+                        <button class="primary-button" type="button" @onclick="AutoReviewAsync">Auto Review</button>
                     </div>
                 </div>
             }
@@ -148,6 +149,44 @@
     private async Task ReloadAsync()
     {
         _pullRequests = (await DashboardService.GetPullRequestsAsync()).ToList();
+    }
+
+    private void OpenSettings()
+    {
+        NavigationManager.NavigateTo("/settings?tab=project");
+    }
+
+    private async Task OpenReviewAsync()
+    {
+        if (_selectedPullRequest is null)
+        {
+            return;
+        }
+
+        _pullRequests = (await DashboardService.OpenPullRequestReviewAsync(_selectedPullRequest.Number)).ToList();
+        _selectedPullRequest = _pullRequests.FirstOrDefault(pr => pr.Number == _selectedPullRequest.Number);
+    }
+
+    private async Task CreateTaskAsync()
+    {
+        if (_selectedPullRequest is null)
+        {
+            return;
+        }
+
+        _pullRequests = (await DashboardService.CreateTaskFromPullRequestAsync(_selectedPullRequest.Number)).ToList();
+        _selectedPullRequest = _pullRequests.FirstOrDefault(pr => pr.Number == _selectedPullRequest.Number);
+    }
+
+    private async Task AutoReviewAsync()
+    {
+        if (_selectedPullRequest is null)
+        {
+            return;
+        }
+
+        _pullRequests = (await DashboardService.AutoReviewPullRequestAsync(_selectedPullRequest.Number)).ToList();
+        _selectedPullRequest = _pullRequests.FirstOrDefault(pr => pr.Number == _selectedPullRequest.Number);
     }
 
     private void SelectPullRequest(PullRequestItem pullRequest)
