@@ -1,0 +1,36 @@
+﻿@page "/context"
+
+<section class="page-header">
+    <div>
+        <span class="page-kicker">Workspace</span>
+        <h1>Context</h1>
+        <p class="page-subtitle">Knowledge sources and active memory references.</p>
+    </div>
+    <button class="ghost-button" type="button">Refresh</button>
+</section>
+
+<section class="page-content">
+    <div class="stacked-list">
+        <div class="stacked-item">
+            <div>
+                <h3>Repository Summary</h3>
+                <p>Summarized architecture notes and active instructions.</p>
+            </div>
+            <span class="pill green">Loaded</span>
+        </div>
+        <div class="stacked-item">
+            <div>
+                <h3>Recent Task History</h3>
+                <p>Planning, implementation, and validation logs.</p>
+            </div>
+            <span class="pill">Synced</span>
+        </div>
+        <div class="stacked-item">
+            <div>
+                <h3>External References</h3>
+                <p>Design references and UI parity notes.</p>
+            </div>
+            <span class="pill warning">Pending</span>
+        </div>
+    </div>
+</section>
