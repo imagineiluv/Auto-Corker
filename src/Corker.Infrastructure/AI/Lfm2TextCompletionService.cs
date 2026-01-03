@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Corker.Infrastructure.AI;
 
-public class Lfm2TextCompletionService : ILLMService, IDisposable
+public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDisposable
 {
     private readonly string _modelPath;
     private readonly ILogger<Lfm2TextCompletionService> _logger;
@@ -19,6 +19,14 @@ public class Lfm2TextCompletionService : ILLMService, IDisposable
         _modelPath = modelPath;
         _logger = logger;
     }
+
+    public string ProviderName => "Local LLM (LLamaSharp)";
+
+    public string ModelPath => _modelPath;
+
+    public bool IsAvailable => File.Exists(_modelPath);
+
+    public bool IsInitialized => _executor != null;
 
     public void Initialize()
     {

@@ -1,4 +1,7 @@
 ﻿@page "/settings"
+@using System.Linq
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="page-header">
     <div>
@@ -6,31 +9,201 @@
         <h1>Settings</h1>
         <p class="page-subtitle">Configure models, repositories, and agent behavior.</p>
     </div>
-    <button class="ghost-button" type="button">Save</button>
+    <div class="page-actions">
+        <button class="ghost-button" type="button">Reset</button>
+        <button class="primary-button" type="button">Save</button>
+    </div>
+</section>
+
+<section class="tab-shell">
+    <div class="tab-list">
+        <button class="tab-pill @(IsActive("app"))" type="button" @onclick="() => SetActiveTab("app")">App</button>
+        <button class="tab-pill @(IsActive("project"))" type="button" @onclick="() => SetActiveTab("project")">Project</button>
+        <button class="tab-pill @(IsActive("agents"))" type="button" @onclick="() => SetActiveTab("agents")">Agents</button>
+    </div>
 </section>
 
 <section class="page-content">
-    <div class="card-grid">
-        <article class="info-card">
-            <header>
-                <h3>Model Selection</h3>
-                <span class="pill">LFM2</span>
-            </header>
-            <p>Use GGUF models stored in the local models directory.</p>
-        </article>
-        <article class="info-card">
-            <header>
-                <h3>Repository Path</h3>
-                <span class="pill muted">/repos/corker</span>
-            </header>
-            <p>Active worktree root for agent operations.</p>
-        </article>
-        <article class="info-card">
-            <header>
-                <h3>Validation Mode</h3>
-                <span class="pill warning">Sandboxed</span>
-            </header>
-            <p>Run tests inside an isolated environment.</p>
-        </article>
-    </div>
+    @if (_activeTab == "app")
+    {
+        <div class="settings-grid">
+            @foreach (var section in _sections.Where(section => section.Title == "Model"))
+            {
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3>@section.Title</h3>
+                            <p>Local LLM configuration and runtime status.</p>
+                        </div>
+                        <span class="pill @_localLlmStatus">@_localLlmLabel</span>
+                    </div>
+                    <div class="panel-body">
+                        @foreach (var item in section.Items)
+                        {
+                            <div class="settings-row">
+                                <label>@item.Label</label>
+                                <div class="settings-value">
+                                    <span class="pill @item.ValueClass">@item.Value</span>
+                                    <button class="ghost-button" type="button">@item.ActionLabel</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Preferences</h3>
+                        <p>Appearance and notification preferences.</p>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="settings-row">
+                        <label>Theme</label>
+                        <div class="settings-value">
+                            <span class="pill">Dark</span>
+                            <button class="ghost-button" type="button">Toggle</button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label>Auto Updates</label>
+                        <div class="settings-value">
+                            <span class="pill green">Enabled</span>
+                            <button class="ghost-button" type="button">Manage</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (_activeTab == "project")
+    {
+        <div class="settings-grid">
+            @foreach (var section in _sections.Where(section => section.Title == "Project"))
+            {
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3>@section.Title</h3>
+                            <p>Repository and sync configuration.</p>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        @foreach (var item in section.Items)
+                        {
+                            <div class="settings-row">
+                                <label>@item.Label</label>
+                                <div class="settings-value">
+                                    <span class="pill @item.ValueClass">@item.Value</span>
+                                    <button class="ghost-button" type="button">@item.ActionLabel</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Git Integrations</h3>
+                        <p>Configure GitHub and GitLab connectivity.</p>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="settings-row">
+                        <label>GitHub</label>
+                        <div class="settings-value">
+                            <span class="pill green">Connected</span>
+                            <button class="ghost-button" type="button">Manage</button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label>GitLab</label>
+                        <div class="settings-value">
+                            <span class="pill">Not connected</span>
+                            <button class="ghost-button" type="button">Connect</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="settings-grid">
+            @foreach (var section in _sections.Where(section => section.Title == "Agents"))
+            {
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3>@section.Title</h3>
+                            <p>Configure task execution and validation.</p>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        @foreach (var item in section.Items)
+                        {
+                            <div class="settings-row">
+                                <label>@item.Label</label>
+                                <div class="settings-value">
+                                    <span class="pill @item.ValueClass">@item.Value</span>
+                                    <button class="ghost-button" type="button">@item.ActionLabel</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Notifications</h3>
+                        <p>Alerts for reviews, completions, and errors.</p>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="settings-row">
+                        <label>Review Alerts</label>
+                        <div class="settings-value">
+                            <span class="pill green">Enabled</span>
+                            <button class="ghost-button" type="button">Configure</button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <label>Failure Alerts</label>
+                        <div class="settings-value">
+                            <span class="pill">Muted</span>
+                            <button class="ghost-button" type="button">Enable</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </section>
+
+@code {
+    private string _activeTab = "app";
+    private IReadOnlyList<SettingsSection> _sections = Array.Empty<SettingsSection>();
+    private string _localLlmLabel = "Local LLM";
+    private string _localLlmStatus = "muted";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _sections = await DashboardService.GetSettingsAsync();
+        var status = await DashboardService.GetLocalLlmStatusAsync();
+        _localLlmLabel = status.IsAvailable ? "Local LLM Ready" : "Local LLM Missing";
+        _localLlmStatus = status.IsAvailable ? "green" : "warning";
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        _activeTab = tab;
+    }
+
+    private string IsActive(string tab)
+    {
+        return _activeTab == tab ? "active" : string.Empty;
+    }
+}

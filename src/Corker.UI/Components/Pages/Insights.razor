@@ -1,4 +1,6 @@
 ﻿@page "/insights"
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="page-header">
     <div>
@@ -6,31 +8,106 @@
         <h1>Insights</h1>
         <p class="page-subtitle">High-level metrics, task throughput, and agent utilization.</p>
     </div>
-    <button class="ghost-button" type="button">Export</button>
+    <div class="page-actions">
+        <button class="ghost-button" type="button">Export</button>
+        <button class="primary-button" type="button" @onclick="ReloadAsync">Refresh</button>
+    </div>
 </section>
 
 <section class="page-content">
-    <div class="card-grid">
-        <article class="info-card">
-            <header>
-                <h3>Tasks Completed</h3>
-                <span class="metric-value">42</span>
-            </header>
-            <p>Completed tasks over the last 7 days.</p>
-        </article>
-        <article class="info-card">
-            <header>
-                <h3>Average Cycle Time</h3>
-                <span class="metric-value">3h 18m</span>
-            </header>
-            <p>Planning → Done in the current workspace.</p>
-        </article>
-        <article class="info-card">
-            <header>
-                <h3>Agent Utilization</h3>
-                <span class="metric-value">78%</span>
-            </header>
-            <p>Average agent activity across the last 24 hours.</p>
-        </article>
+    <div class="insights-grid">
+        @foreach (var metric in _metrics)
+        {
+            <article class="info-card">
+                <header>
+                    <h3>@metric.Title</h3>
+                    <span class="metric-value">@metric.Value</span>
+                </header>
+                <p>@metric.Description</p>
+                <div class="progress-bar">
+                    <span style="width: @metric.Progress%"></span>
+                </div>
+            </article>
+        }
+    </div>
+
+    <div class="split-layout">
+        <div class="panel">
+            <div class="panel-header">
+                <div>
+                    <h3>Throughput Breakdown</h3>
+                    <p>Task flow across Kanban stages.</p>
+                </div>
+                <span class="pill muted">Last 7 days</span>
+            </div>
+            <div class="panel-body">
+                <div class="stacked-list compact">
+                    <div class="stacked-item">
+                        <div>
+                            <h3>Backlog → In Progress</h3>
+                            <p>18 tasks moved into active execution.</p>
+                        </div>
+                        <span class="pill">+12%</span>
+                    </div>
+                    <div class="stacked-item">
+                        <div>
+                            <h3>In Progress → Review</h3>
+                            <p>12 tasks queued for AI review.</p>
+                        </div>
+                        <span class="pill green">On track</span>
+                    </div>
+                    <div class="stacked-item">
+                        <div>
+                            <h3>Review → Done</h3>
+                            <p>10 tasks delivered to completion.</p>
+                        </div>
+                        <span class="pill green">Stable</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <div>
+                    <h3>Agent Load</h3>
+                    <p>Current utilization and queue health.</p>
+                </div>
+                <button class="ghost-button" type="button">View details</button>
+            </div>
+            <div class="panel-body">
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Claude Code</span>
+                        <strong>64%</strong>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Spec Runner</span>
+                        <strong>82%</strong>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Review Agent</span>
+                        <strong>48%</strong>
+                    </div>
+                </div>
+                <div class="chart-placeholder">
+                    <span>Hourly activity graph</span>
+                </div>
+            </div>
+        </div>
     </div>
 </section>
+
+@code {
+    private IReadOnlyList<InsightMetric> _metrics = Array.Empty<InsightMetric>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _metrics = await DashboardService.GetInsightsAsync();
+    }
+}

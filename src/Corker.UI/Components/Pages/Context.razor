@@ -1,36 +1,174 @@
 ﻿@page "/context"
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="page-header">
     <div>
         <span class="page-kicker">Workspace</span>
         <h1>Context</h1>
-        <p class="page-subtitle">Knowledge sources and active memory references.</p>
+        <p class="page-subtitle">Knowledge sources, index status, and memory recall.</p>
     </div>
-    <button class="ghost-button" type="button">Refresh</button>
+    <div class="page-actions">
+        <button class="ghost-button" type="button" @onclick="RefreshAsync">Refresh</button>
+        <button class="primary-button" type="button">Add Source</button>
+    </div>
 </section>
 
-<section class="page-content">
-    <div class="stacked-list">
-        <div class="stacked-item">
-            <div>
-                <h3>Repository Summary</h3>
-                <p>Summarized architecture notes and active instructions.</p>
-            </div>
-            <span class="pill green">Loaded</span>
-        </div>
-        <div class="stacked-item">
-            <div>
-                <h3>Recent Task History</h3>
-                <p>Planning, implementation, and validation logs.</p>
-            </div>
-            <span class="pill">Synced</span>
-        </div>
-        <div class="stacked-item">
-            <div>
-                <h3>External References</h3>
-                <p>Design references and UI parity notes.</p>
-            </div>
-            <span class="pill warning">Pending</span>
-        </div>
+<section class="tab-shell">
+    <div class="tab-list">
+        <button class="tab-pill @(IsActive("index"))" type="button" @onclick="() => SetActiveTab("index")">Project Index</button>
+        <button class="tab-pill @(IsActive("memories"))" type="button" @onclick="() => SetActiveTab("memories")">Memories</button>
     </div>
 </section>
+
+@if (_activeTab == "index")
+{
+    <section class="page-content">
+        <div class="split-layout">
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Index Status</h3>
+                        <p>Latest scan of repositories and documentation.</p>
+                    </div>
+                    <span class="pill @_contextSummary.StatusClass">@_contextSummary.Status</span>
+                </div>
+                <div class="panel-body">
+                    <div class="stat-grid">
+                        <div class="stat-card">
+                            <span class="stat-label">Files indexed</span>
+                            <strong>@_contextSummary.FilesIndexed</strong>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Knowledge sources</span>
+                            <strong>@_contextSummary.SourcesCount</strong>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Last refreshed</span>
+                            <strong>@_contextSummary.LastUpdatedLabel</strong>
+                        </div>
+                    </div>
+                    <div class="panel-actions">
+                        <button class="ghost-button" type="button">Rebuild</button>
+                        <button class="primary-button" type="button">Open Index</button>
+                    </div>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Indexed Sources</h3>
+                        <p>Active repositories and notes synced into memory.</p>
+                    </div>
+                    <span class="pill">@_contextSummary.SourcesCount Active</span>
+                </div>
+                <div class="panel-body">
+                    <div class="stacked-list compact">
+                        @foreach (var source in _contextSummary.Sources)
+                        {
+                            <div class="stacked-item">
+                                <div>
+                                    <h3>@source.Name</h3>
+                                    <p>@source.Description</p>
+                                </div>
+                                <span class="pill @source.StatusClass">@source.Status</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    <section class="page-content">
+        <div class="split-layout">
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Memory Search</h3>
+                        <p>Query recent agent memories and reference snippets.</p>
+                    </div>
+                    <span class="pill muted">@_memoryOverview.ResultCount results</span>
+                </div>
+                <div class="panel-body">
+                    <input class="text-input" placeholder="Search memories, commands, or files" />
+                    <div class="stacked-list compact">
+                        @foreach (var memory in _memoryOverview.Items)
+                        {
+                            <div class="stacked-item">
+                                <div>
+                                    <h3>@memory.Title</h3>
+                                    <p>@memory.Description</p>
+                                </div>
+                                <span class="pill @memory.StatusClass">@memory.Status</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Memory Cards</h3>
+                        <p>Curated insights captured during task runs.</p>
+                    </div>
+                    <button class="ghost-button" type="button">Manage</button>
+                </div>
+                <div class="panel-body">
+                    <div class="card-grid">
+                        <article class="info-card">
+                            <header>
+                                <h3>Context Refresh</h3>
+                                <span class="pill">Auto</span>
+                            </header>
+                            <p>Keep repo summary in sync after each task completion.</p>
+                        </article>
+                        <article class="info-card">
+                            <header>
+                                <h3>Design Notes</h3>
+                                <span class="pill purple">UX</span>
+                            </header>
+                            <p>Update typography and spacing for Auto-Claude parity.</p>
+                        </article>
+                        <article class="info-card">
+                            <header>
+                                <h3>Agent Insights</h3>
+                                <span class="pill green">Saved</span>
+                            </header>
+                            <p>Track long-running agent sessions and triggers.</p>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+}
+
+@code {
+    private string _activeTab = "index";
+    private ContextSummary _contextSummary = new("Healthy", "green", 0, 0, "--", Array.Empty<ContextSource>());
+    private MemoryOverview _memoryOverview = new(0, Array.Empty<MemoryItem>());
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _contextSummary = await DashboardService.GetContextSummaryAsync();
+        _memoryOverview = await DashboardService.GetMemoryOverviewAsync();
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        _activeTab = tab;
+    }
+
+    private string IsActive(string tab)
+    {
+        return _activeTab == tab ? "active" : string.Empty;
+    }
+}

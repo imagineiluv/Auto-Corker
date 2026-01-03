@@ -1,4 +1,12 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Corker.Core.Interfaces;
+using Corker.Infrastructure.AI;
+using Corker.Orchestrator;
+using Corker.Orchestrator.Services;
+using Microsoft.Extensions.Logging;
+#if WINDOWS
+using Microsoft.UI.Windowing;
+using Windows.Graphics;
+#endif
 
 namespace Corker.UI;
 
@@ -9,12 +17,38 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
+			.ConfigureLifecycleEvents(events =>
+			{
+#if WINDOWS
+				events.AddWindows(windows =>
+					windows.OnWindowCreated(window =>
+					{
+						var appWindow = window.AppWindow;
+						var size = new SizeInt32(1024, 720);
+						appWindow.Resize(size);
+					}));
+#endif
+			})
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
 			});
 
 		builder.Services.AddMauiBlazorWebView();
+		builder.Services.AddSingleton<ILLMService>(serviceProvider =>
+		{
+			var logger = serviceProvider.GetRequiredService<ILogger<Lfm2TextCompletionService>>();
+			var modelPath = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH")
+				?? Path.Combine(AppContext.BaseDirectory, "models", "lfm2.gguf");
+			var service = new Lfm2TextCompletionService(modelPath, logger);
+			service.Initialize();
+			return service;
+		});
+		builder.Services.AddSingleton<ILLMStatusProvider>(serviceProvider =>
+			(ILLMStatusProvider)serviceProvider.GetRequiredService<ILLMService>());
+		builder.Services.AddSingleton<IAgentService, AgentManager>();
+		builder.Services.AddSingleton<OrchestratorService>();
+		builder.Services.AddSingleton<WorkspaceDashboardService>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
