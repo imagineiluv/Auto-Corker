@@ -2,6 +2,7 @@ using Corker.Core.Entities;
 using Corker.Core.Interfaces;
 using Corker.Orchestrator.Models;
 using Microsoft.Extensions.Logging;
+using TaskStatus = Corker.Core.Entities.TaskStatus;
 
 namespace Corker.Orchestrator.Services;
 

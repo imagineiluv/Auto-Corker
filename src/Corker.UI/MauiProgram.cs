@@ -3,6 +3,7 @@ using Corker.Infrastructure.AI;
 using Corker.Orchestrator;
 using Corker.Orchestrator.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.LifecycleEvents;
 #if WINDOWS
 using Microsoft.UI.Windowing;
 using Windows.Graphics;
@@ -24,7 +25,7 @@ public static class MauiProgram
 					windows.OnWindowCreated(window =>
 					{
 						var appWindow = window.AppWindow;
-						var size = new SizeInt32(1024, 720);
+						var size = new SizeInt32(1600, 1200);
 						appWindow.Resize(size);
 					}));
 #endif

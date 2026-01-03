@@ -1,4 +1,5 @@
 using Corker.Core.Entities;
+using TaskStatus = Corker.Core.Entities.TaskStatus;
 
 namespace Corker.Orchestrator.Models;
 

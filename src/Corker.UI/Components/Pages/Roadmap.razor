@@ -32,8 +32,10 @@
 
 <section class="roadmap-controls">
     <div class="roadmap-tabs">
-        <button class="tab-button @(IsActive("priority"))" type="button" @onclick="() => SetActiveTab("priority")">By Priority</button>
-        <button class="tab-button @(IsActive("phases"))" type="button" @onclick="() => SetActiveTab("phases")">Phases</button>
+        <button class="tab-button @(IsActive("priority"))" type="button" @onclick="@(() => SetActiveTab("priority"))">By
+            Priority</button>
+        <button class="tab-button @(IsActive("phases"))" type="button"
+            @onclick="@(() => SetActiveTab("phases"))">Phases</button>
     </div>
     <div class="roadmap-filters">
         <span class="pill muted">All Features</span>

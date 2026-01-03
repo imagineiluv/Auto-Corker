@@ -21,9 +21,11 @@
         <span class="pill muted">@FilteredIssues.Count() issue(s)</span>
     </div>
     <div class="filter-group">
-        <button class="tab-pill @(IsFilter("Open"))" type="button" @onclick="() => SetFilter("Open")">Open</button>
-        <button class="tab-pill @(IsFilter("Assigned"))" type="button" @onclick="() => SetFilter("Assigned")">Assigned</button>
-        <button class="tab-pill @(IsFilter("Closed"))" type="button" @onclick="() => SetFilter("Closed")">Closed</button>
+        <button class="tab-pill @(IsFilter("Open"))" type="button" @onclick="@(() => SetFilter("Open"))">Open</button>
+        <button class="tab-pill @(IsFilter("Assigned"))" type="button"
+            @onclick="@(() => SetFilter("Assigned"))">Assigned</button>
+        <button class="tab-pill @(IsFilter("Closed"))" type="button"
+            @onclick="@(() => SetFilter("Closed"))">Closed</button>
     </div>
 </section>
 

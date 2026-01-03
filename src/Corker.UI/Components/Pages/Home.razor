@@ -108,10 +108,10 @@
     {
         var nextStatus = task.Status switch
         {
-            TaskStatus.Pending => TaskStatus.InProgress,
-            TaskStatus.InProgress => TaskStatus.Review,
-            TaskStatus.Review => TaskStatus.Done,
-            _ => TaskStatus.Done
+            Corker.Core.Entities.TaskStatus.Pending => Corker.Core.Entities.TaskStatus.InProgress,
+            Corker.Core.Entities.TaskStatus.InProgress => Corker.Core.Entities.TaskStatus.Review,
+            Corker.Core.Entities.TaskStatus.Review => Corker.Core.Entities.TaskStatus.Done,
+            _ => Corker.Core.Entities.TaskStatus.Done
         };
 
         await DashboardService.UpdateTaskStatusAsync(task.Id, nextStatus);

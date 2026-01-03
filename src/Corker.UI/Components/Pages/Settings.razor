@@ -17,9 +17,9 @@
 
 <section class="tab-shell">
     <div class="tab-list">
-        <button class="tab-pill @(IsActive("app"))" type="button" @onclick="() => SetActiveTab("app")">App</button>
-        <button class="tab-pill @(IsActive("project"))" type="button" @onclick="() => SetActiveTab("project")">Project</button>
-        <button class="tab-pill @(IsActive("agents"))" type="button" @onclick="() => SetActiveTab("agents")">Agents</button>
+        <button class="tab-pill @(IsActive("app"))" type="button" @onclick="@(() => SetActiveTab("app"))">App</button>
+        <button class="tab-pill @(IsActive("project"))" type="button" @onclick="@(() => SetActiveTab("project"))">Project</button>
+        <button class="tab-pill @(IsActive("agents"))" type="button" @onclick="@(() => SetActiveTab("agents"))">Agents</button>
     </div>
 </section>
 
@@ -27,18 +27,18 @@
     @if (_activeTab == "app")
     {
         <div class="settings-grid">
-            @foreach (var section in _sections.Where(section => section.Title == "Model"))
+            @foreach (var setting in _sections.Where(section => section.Title == "Model"))
             {
                 <div class="panel">
                     <div class="panel-header">
                         <div>
-                            <h3>@section.Title</h3>
+                            <h3>@setting.Title</h3>
                             <p>Local LLM configuration and runtime status.</p>
                         </div>
                         <span class="pill @_localLlmStatus">@_localLlmLabel</span>
                     </div>
                     <div class="panel-body">
-                        @foreach (var item in section.Items)
+                        @foreach (var item in setting.Items)
                         {
                             <div class="settings-row">
                                 <label>@item.Label</label>
@@ -80,17 +80,17 @@
     else if (_activeTab == "project")
     {
         <div class="settings-grid">
-            @foreach (var section in _sections.Where(section => section.Title == "Project"))
+            @foreach (var setting in _sections.Where(section => section.Title == "Project"))
             {
                 <div class="panel">
                     <div class="panel-header">
                         <div>
-                            <h3>@section.Title</h3>
+                            <h3>@setting.Title</h3>
                             <p>Repository and sync configuration.</p>
                         </div>
                     </div>
                     <div class="panel-body">
-                        @foreach (var item in section.Items)
+                        @foreach (var item in setting.Items)
                         {
                             <div class="settings-row">
                                 <label>@item.Label</label>
@@ -132,17 +132,17 @@
     else
     {
         <div class="settings-grid">
-            @foreach (var section in _sections.Where(section => section.Title == "Agents"))
+            @foreach (var setting in _sections.Where(section => section.Title == "Agents"))
             {
                 <div class="panel">
                     <div class="panel-header">
                         <div>
-                            <h3>@section.Title</h3>
+                            <h3>@setting.Title</h3>
                             <p>Configure task execution and validation.</p>
                         </div>
                     </div>
                     <div class="panel-body">
-                        @foreach (var item in section.Items)
+                        @foreach (var item in setting.Items)
                         {
                             <div class="settings-row">
                                 <label>@item.Label</label>
