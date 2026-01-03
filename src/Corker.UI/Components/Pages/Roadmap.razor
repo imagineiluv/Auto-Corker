@@ -1,4 +1,7 @@
 ﻿@page "/roadmap"
+@using System.Linq
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="page-header">
     <div>
@@ -6,77 +9,115 @@
         <h1>Roadmap</h1>
         <p class="page-subtitle">Strategic milestones and delivery sequencing.</p>
     </div>
-    <button class="ghost-button" type="button">Share</button>
+    <div class="page-actions">
+        <button class="ghost-button" type="button">Share</button>
+        <button class="primary-button" type="button" @onclick="GenerateRoadmapAsync">Generate</button>
+    </div>
 </section>
 
 <section class="roadmap-overview">
     <div>
-        <h2>Auto Claude</h2>
+        <h2>Auto-Claude</h2>
         <p>A production-ready framework for autonomous multi-session AI coding.</p>
         <div class="tag-row">
-            <span class="pill muted">14 features</span>
-            <span class="pill green">4 phases</span>
-            <span class="pill warning">3 must</span>
-            <span class="pill purple">5 should</span>
-            <span class="pill">7 could</span>
+            <span class="pill muted">@FeatureCount features</span>
+            <span class="pill green">@_phases.Count phases</span>
+            <span class="pill warning">@MustCount must</span>
+            <span class="pill purple">@ShouldCount should</span>
+            <span class="pill">@CouldCount could</span>
         </div>
     </div>
-    <button class="icon-button" type="button">↻</button>
+    <button class="icon-button" type="button" @onclick="ReloadAsync">↻</button>
 </section>
 
 <section class="roadmap-controls">
     <div class="roadmap-tabs">
-        <button class="tab-button">Phases</button>
-        <button class="tab-button active">By Priority</button>
+        <button class="tab-button @(IsActive("priority"))" type="button" @onclick="() => SetActiveTab("priority")">By Priority</button>
+        <button class="tab-button @(IsActive("phases"))" type="button" @onclick="() => SetActiveTab("phases")">Phases</button>
     </div>
     <div class="roadmap-filters">
         <span class="pill muted">All Features</span>
-        <span class="pill">By Priority</span>
+        <span class="pill">@_activeTabLabel</span>
     </div>
 </section>
 
-<section class="roadmap-grid">
-    <article class="roadmap-card">
-        <header>
-            <span class="pill warning">Must Have</span>
-            <span class="pill muted">3 features</span>
-        </header>
-        <ul class="roadmap-list">
-            <li>Fix route detection false positives <span class="pill muted">medium</span></li>
-            <li>Expanded test coverage <span class="pill warning">high impact</span></li>
-            <li>Built-in diff viewer <span class="pill green">low</span></li>
-        </ul>
-    </article>
-    <article class="roadmap-card">
-        <header>
-            <span class="pill green">Should Have</span>
-            <span class="pill muted">4 features</span>
-        </header>
-        <ul class="roadmap-list">
-            <li>Automatic worktree cleanup <span class="pill muted">low</span></li>
-            <li>Project templates &amp; scaffolding <span class="pill green">medium</span></li>
-            <li>Analytics dashboard <span class="pill warning">high impact</span></li>
-            <li>Advanced documentation <span class="pill muted">medium</span></li>
-        </ul>
-    </article>
-    <article class="roadmap-card">
-        <header>
-            <span class="pill purple">Could Have</span>
-            <span class="pill muted">7 features</span>
-        </header>
-        <ul class="roadmap-list">
-            <li>Interactive onboarding wizard <span class="pill muted">medium</span></li>
-            <li>Cloud sync for specs &amp; memory <span class="pill warning">high impact</span></li>
-            <li>Team workspace sharing <span class="pill warning">high impact</span></li>
-        </ul>
-    </article>
-    <article class="roadmap-card">
-        <header>
-            <span class="pill muted">Won't Have</span>
-            <span class="pill muted">0 features</span>
-        </header>
-        <ul class="roadmap-list">
-            <li>No items yet</li>
-        </ul>
-    </article>
-</section>
+@if (_activeTab == "priority")
+{
+    <section class="roadmap-grid">
+        @foreach (var group in _priorityGroups)
+        {
+            <article class="roadmap-card">
+                <header>
+                    <span class="pill @group.BadgeClass">@group.Title</span>
+                    <span class="pill muted">@group.Items.Count feature(s)</span>
+                </header>
+                <ul class="roadmap-list">
+                    @foreach (var item in group.Items)
+                    {
+                        <li>@item.Title <span class="pill muted">@item.Impact</span></li>
+                    }
+                </ul>
+            </article>
+        }
+    </section>
+}
+else
+{
+    <section class="roadmap-grid">
+        @foreach (var phase in _phases)
+        {
+            <article class="roadmap-card">
+                <header>
+                    <span class="pill green">@phase.Title</span>
+                    <span class="pill muted">@phase.Window</span>
+                </header>
+                <ul class="roadmap-list">
+                    @foreach (var item in phase.Items)
+                    {
+                        <li>@item.Title <span class="pill @item.BadgeClass">@item.Status</span></li>
+                    }
+                </ul>
+            </article>
+        }
+    </section>
+}
+
+@code {
+    private string _activeTab = "priority";
+    private IReadOnlyList<RoadmapGroup> _priorityGroups = Array.Empty<RoadmapGroup>();
+    private IReadOnlyList<RoadmapPhase> _phases = Array.Empty<RoadmapPhase>();
+
+    private string _activeTabLabel => _activeTab == "priority" ? "By Priority" : "By Phases";
+
+    private int FeatureCount => _priorityGroups.Sum(group => group.Items.Count);
+    private int MustCount => _priorityGroups.FirstOrDefault(group => group.Title.Contains("Must"))?.Items.Count ?? 0;
+    private int ShouldCount => _priorityGroups.FirstOrDefault(group => group.Title.Contains("Should"))?.Items.Count ?? 0;
+    private int CouldCount => _priorityGroups.FirstOrDefault(group => group.Title.Contains("Could"))?.Items.Count ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _priorityGroups = await DashboardService.GetRoadmapByPriorityAsync();
+        _phases = await DashboardService.GetRoadmapByPhaseAsync();
+    }
+
+    private async Task GenerateRoadmapAsync()
+    {
+        await DashboardService.GenerateRoadmapAsync();
+        await ReloadAsync();
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        _activeTab = tab;
+    }
+
+    private string IsActive(string tab)
+    {
+        return _activeTab == tab ? "active" : string.Empty;
+    }
+}

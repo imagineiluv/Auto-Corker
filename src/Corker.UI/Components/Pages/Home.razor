@@ -1,144 +1,133 @@
 ﻿@page "/"
+@using Corker.Core.Entities
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="board-header">
     <div class="board-title">
         <span class="board-project">autonomous-coding</span>
         <h1>Kanban Board</h1>
+        <p class="page-subtitle">Track autonomous tasks across planning, execution, and review.</p>
     </div>
     <div class="board-actions">
         <label class="toggle">
-            <input type="checkbox" />
+            <input type="checkbox" @bind="_showArchived" />
             <span>Show archived</span>
         </label>
+        <button class="ghost-button" type="button" @onclick="ReloadAsync">Filter</button>
+        <button class="primary-button" type="button" @onclick="CreateTaskAsync">+ New Task</button>
     </div>
 </section>
 
 <section class="kanban-board">
-    <div class="kanban-column planning">
-        <header class="kanban-column-header">
-            <div>
-                <h2>Planning</h2>
-                <span class="pill">1</span>
-            </div>
-            <button class="icon-button" type="button">+</button>
-        </header>
-        <article class="task-card">
-            <div class="task-title">Add Electron debugging server</div>
-            <p class="task-body">We want to expand upon the validation layer inside our application.</p>
-            <div class="task-meta">
-                <span class="pill muted">Pending</span>
-                <span class="task-time">1h ago</span>
-            </div>
-            <button class="primary-button" type="button">Start</button>
-        </article>
-    </div>
-
-    <div class="kanban-column in-progress">
-        <header class="kanban-column-header">
-            <div>
-                <h2>In Progress</h2>
-                <span class="pill">0</span>
-            </div>
-        </header>
-        <div class="empty-state">
-            <div class="spinner"></div>
-            <p>Nothing running</p>
-            <span>Start a task from Planning</span>
-        </div>
-    </div>
-
-    <div class="kanban-column ai-review">
-        <header class="kanban-column-header">
-            <div>
-                <h2>AI Review</h2>
-                <span class="pill">0</span>
-            </div>
-        </header>
-        <div class="empty-state">
-            <div class="empty-icon">👀</div>
-            <p>No tasks in review</p>
-            <span>AI will review completed tasks</span>
-        </div>
-    </div>
-
-    <div class="kanban-column human-review">
-        <header class="kanban-column-header">
-            <div>
-                <h2>Human Review</h2>
-                <span class="pill">4</span>
-            </div>
-        </header>
-
-        <article class="task-card">
-            <div class="task-title">Go-to-task shortcut</div>
-            <p class="task-body">After converting an idea to a task, show a “Go to Task” button.</p>
-            <div class="task-tags">
-                <span class="pill purple">Needs Review</span>
-                <span class="pill green">Completed</span>
-            </div>
-            <div class="task-progress">
-                <span>Progress</span>
-                <span>100%</span>
-            </div>
-            <div class="progress-bar">
-                <span style="width: 100%"></span>
-            </div>
-            <div class="task-footer">
-                <div class="progress-dots">
-                    <span></span><span></span><span></span><span></span><span></span><span></span>
+    @foreach (var column in _columns)
+    {
+        <div class="kanban-column @GetColumnClass(column.Key)">
+            <header class="kanban-column-header">
+                <div class="column-title">
+                    <h2>@column.Title</h2>
+                    <span class="column-count-badge">@column.Tasks.Count</span>
                 </div>
-                <span class="task-time">4h ago</span>
-            </div>
-        </article>
+                @if (column.Key == "backlog")
+                {
+                    <div class="column-actions">
+                        <button class="icon-button" type="button" @onclick="CreateTaskAsync">+</button>
+                    </div>
+                }
+            </header>
 
-        <article class="task-card">
-            <div class="task-title">Add Loading</div>
-            <p class="task-body">During roadmap generation, users currently see a minimal loading UI.</p>
-            <div class="task-tags">
-                <span class="pill purple">Needs Review</span>
-                <span class="pill green">Completed</span>
-            </div>
-            <div class="task-progress">
-                <span>Progress</span>
-                <span>100%</span>
-            </div>
-            <div class="progress-bar">
-                <span style="width: 100%"></span>
-            </div>
-            <div class="task-footer">
-                <div class="progress-dots">
-                    <span></span><span></span><span></span><span></span><span></span><span></span>
+            @if (column.Tasks.Count == 0)
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <p>No tasks yet</p>
+                    <span>Add a task to @column.Title</span>
                 </div>
-                <span class="task-time">2h ago</span>
-            </div>
-        </article>
-    </div>
-
-    <div class="kanban-column done">
-        <header class="kanban-column-header">
-            <div>
-                <h2>Done</h2>
-                <span class="pill">1</span>
-            </div>
-        </header>
-        <article class="task-card">
-            <div class="task-title">Implement virtualization</div>
-            <p class="task-body">FileTree component renders all files in expanded directories.</p>
-            <div class="task-tags">
-                <span class="pill green">Complete</span>
-            </div>
-            <div class="task-progress">
-                <span>Progress</span>
-                <span>100%</span>
-            </div>
-            <div class="progress-bar">
-                <span style="width: 100%"></span>
-            </div>
-            <div class="task-footer">
-                <span class="pill muted">Performance</span>
-                <span class="pill warning">High Impact</span>
-                <span class="task-time">3h ago</span>
-            </div>
-        </article>
-    </div>
+            }
+            else
+            {
+                @foreach (var task in column.Tasks)
+                {
+                    <article class="task-card">
+                        <div class="task-header">
+                            <div class="task-title">@task.Title</div>
+                            <span class="pill @task.StatusClass">@task.StatusLabel</span>
+                        </div>
+                        <p class="task-body">@task.Description</p>
+                        @if (task.Progress > 0 && column.Key == "in-progress")
+                        {
+                            <div class="task-progress">
+                                <span>Progress</span>
+                                <span>@task.Progress%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <span style="width: @task.Progress%"></span>
+                            </div>
+                        }
+                        <div class="task-footer">
+                            <div class="task-tags">
+                                @foreach (var tag in task.Tags)
+                                {
+                                    <span class="pill muted">@tag</span>
+                                }
+                            </div>
+                            <span class="task-time">@task.TimeLabel</span>
+                        </div>
+                        <div class="task-footer">
+                            <span class="pill">@task.Owner</span>
+                            <button class="ghost-button" type="button" @onclick="() => MoveTaskAsync(task)">Next</button>
+                        </div>
+                    </article>
+                }
+            }
+        </div>
+    }
 </section>
+
+@code {
+    private IReadOnlyList<KanbanColumn> _columns = Array.Empty<KanbanColumn>();
+    private bool _showArchived;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _columns = await DashboardService.GetKanbanAsync();
+    }
+
+    private async Task CreateTaskAsync()
+    {
+        await DashboardService.CreateTaskAsync("New Task", "Describe the next automation task.");
+        await ReloadAsync();
+    }
+
+    private async Task MoveTaskAsync(TaskCard task)
+    {
+        var nextStatus = task.Status switch
+        {
+            TaskStatus.Pending => TaskStatus.InProgress,
+            TaskStatus.InProgress => TaskStatus.Review,
+            TaskStatus.Review => TaskStatus.Done,
+            _ => TaskStatus.Done
+        };
+
+        await DashboardService.UpdateTaskStatusAsync(task.Id, nextStatus);
+        await ReloadAsync();
+    }
+
+    private static string GetColumnClass(string columnKey)
+    {
+        return columnKey switch
+        {
+            "backlog" => "planning",
+            "in-progress" => "in-progress",
+            "ai-review" => "ai-review",
+            "human-review" => "human-review",
+            "done" => "done",
+            _ => "planning"
+        };
+    }
+}

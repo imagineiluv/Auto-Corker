@@ -1,36 +1,198 @@
 ﻿@page "/ideation"
+@using System.Linq
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="page-header">
     <div>
         <span class="page-kicker">Workspace</span>
         <h1>Ideation</h1>
-        <p class="page-subtitle">Capture early ideas before turning them into tasks.</p>
+        <p class="page-subtitle">Capture early ideas and convert them into structured tasks.</p>
     </div>
-    <button class="primary-button" type="button">+ New Idea</button>
+    <div class="page-actions">
+        <button class="ghost-button" type="button" @onclick="ReloadAsync">Refresh</button>
+        <button class="primary-button" type="button" @onclick="GenerateIdeasAsync">Generate Ideas</button>
+    </div>
 </section>
 
-<section class="page-content">
-    <div class="card-grid">
-        <article class="info-card">
-            <header>
-                <h3>Workspace onboarding</h3>
-                <span class="pill">Draft</span>
-            </header>
-            <p>Guide users through connecting repos and models.</p>
-        </article>
-        <article class="info-card">
-            <header>
-                <h3>Memory layer preview</h3>
-                <span class="pill purple">Research</span>
-            </header>
-            <p>Show search results and context sources in one panel.</p>
-        </article>
-        <article class="info-card">
-            <header>
-                <h3>Agent accountability</h3>
-                <span class="pill warning">Needs Review</span>
-            </header>
-            <p>Highlight responsibility for each task across agents.</p>
-        </article>
+<section class="ideation-summary">
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="stat-label">Active ideas</span>
+            <strong>@FilteredIdeas.Count()</strong>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Needs review</span>
+            <strong>@_ideas.Count(idea => idea.Status == "Review")</strong>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Converted to tasks</span>
+            <strong>@_ideas.Count(idea => idea.Status == "Converted")</strong>
+        </div>
     </div>
 </section>
+
+<section class="tab-shell">
+    <div class="tab-list">
+        @foreach (var tab in _tabs)
+        {
+            <button class="tab-pill @(IsActive(tab.Key))" type="button" @onclick="() => SetActiveTab(tab.Key)">@tab.Label</button>
+        }
+    </div>
+</section>
+
+<section class="ideation-layout">
+    <div class="panel">
+        <div class="panel-header">
+            <div>
+                <h3>Idea Queue</h3>
+                <p>Track generated ideas and review readiness.</p>
+            </div>
+            <span class="pill">@FilteredIdeas.Count() items</span>
+        </div>
+        <div class="panel-body">
+            <div class="idea-grid">
+                @foreach (var idea in FilteredIdeas)
+                {
+                    <article class="idea-card @(IsSelected(idea))" @onclick="() => SelectIdea(idea)">
+                        <header>
+                            <h3>@idea.Title</h3>
+                            <span class="pill @idea.StatusClass">@idea.Status</span>
+                        </header>
+                        <p>@idea.Summary</p>
+                        <div class="idea-tags">
+                            <span class="pill muted">@idea.Type</span>
+                            <span class="pill">Impact: @idea.Impact</span>
+                        </div>
+                    </article>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <div>
+                <h3>Idea Detail</h3>
+                <p>Review context, owner, and next steps.</p>
+            </div>
+            <button class="ghost-button" type="button" @onclick="ConvertToTaskAsync">Convert to Task</button>
+        </div>
+        <div class="panel-body">
+            @if (_selectedIdea is null)
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">💡</div>
+                    <p>Select an idea to review details</p>
+                    <span>Choose from the list to the left</span>
+                </div>
+            }
+            else
+            {
+                <div class="idea-detail">
+                    <h3>@_selectedIdea.Title</h3>
+                    <p>@_selectedIdea.Description</p>
+                    <div class="detail-grid">
+                        <div>
+                            <span class="stat-label">Type</span>
+                            <strong>@_selectedIdea.Type</strong>
+                        </div>
+                        <div>
+                            <span class="stat-label">Owner</span>
+                            <strong>@_selectedIdea.Owner</strong>
+                        </div>
+                        <div>
+                            <span class="stat-label">Priority</span>
+                            <strong>@_selectedIdea.Impact</strong>
+                        </div>
+                    </div>
+                    <div class="panel-actions">
+                        <button class="ghost-button" type="button" @onclick="DismissIdea">Dismiss</button>
+                        <button class="primary-button" type="button" @onclick="ConvertToTaskAsync">Create Task</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    private readonly IReadOnlyList<(string Key, string Label)> _tabs = new List<(string Key, string Label)>
+    {
+        ("all", "All"),
+        ("Feature", "Features"),
+        ("Fix", "Fixes"),
+        ("Research", "Research"),
+        ("Ops", "Operations")
+    };
+
+    private List<IdeaCard> _ideas = new();
+    private string _activeTab = "all";
+    private IdeaCard? _selectedIdea;
+
+    private IEnumerable<IdeaCard> FilteredIdeas => _activeTab == "all"
+        ? _ideas
+        : _ideas.Where(idea => idea.Type == _activeTab);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _ideas = (await DashboardService.GetIdeasAsync()).ToList();
+    }
+
+    private async Task GenerateIdeasAsync()
+    {
+        _ideas = (await DashboardService.GenerateIdeasAsync(3)).ToList();
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        _activeTab = tab;
+        if (_selectedIdea is not null && _activeTab != "all" && _selectedIdea.Type != _activeTab)
+        {
+            _selectedIdea = null;
+        }
+    }
+
+    private void SelectIdea(IdeaCard idea)
+    {
+        _selectedIdea = idea;
+    }
+
+    private string IsActive(string tab)
+    {
+        return _activeTab == tab ? "active" : string.Empty;
+    }
+
+    private string IsSelected(IdeaCard idea)
+    {
+        return _selectedIdea == idea ? "active" : string.Empty;
+    }
+
+    private async Task ConvertToTaskAsync()
+    {
+        if (_selectedIdea is null)
+        {
+            return;
+        }
+
+        await DashboardService.CreateTaskAsync(_selectedIdea.Title, _selectedIdea.Description);
+        _selectedIdea = _selectedIdea with { Status = "Converted", StatusClass = "green" };
+        _ideas = _ideas.Select(idea => idea.Id == _selectedIdea.Id ? _selectedIdea : idea).ToList();
+    }
+
+    private void DismissIdea()
+    {
+        if (_selectedIdea is null)
+        {
+            return;
+        }
+
+        _selectedIdea = _selectedIdea with { Status = "Dismissed", StatusClass = "muted" };
+        _ideas = _ideas.Select(idea => idea.Id == _selectedIdea.Id ? _selectedIdea : idea).ToList();
+    }
+}

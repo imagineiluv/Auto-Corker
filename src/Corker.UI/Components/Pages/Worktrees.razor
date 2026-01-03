@@ -1,4 +1,6 @@
 ﻿@page "/worktrees"
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="page-header">
     <div>
@@ -6,31 +8,41 @@
         <h1>Worktrees</h1>
         <p class="page-subtitle">Manage isolated branches created by the agents.</p>
     </div>
-    <button class="primary-button" type="button">+ New Worktree</button>
+    <div class="page-actions">
+        <button class="ghost-button" type="button" @onclick="ReloadAsync">Cleanup</button>
+        <button class="primary-button" type="button">+ New Worktree</button>
+    </div>
 </section>
 
 <section class="page-content">
-    <div class="card-grid">
-        <article class="info-card">
-            <header>
-                <h3>feature/ui-parity</h3>
-                <span class="pill green">Active</span>
-            </header>
-            <p>Workspace for UI alignment and layout refinement.</p>
-        </article>
-        <article class="info-card">
-            <header>
-                <h3>feature/agent-logs</h3>
-                <span class="pill">Idle</span>
-            </header>
-            <p>Pending agent terminal telemetry integration.</p>
-        </article>
-        <article class="info-card">
-            <header>
-                <h3>fix/worktree-cleanup</h3>
-                <span class="pill warning">Stale</span>
-            </header>
-            <p>Candidate for cleanup after validation.</p>
-        </article>
+    <div class="stacked-list">
+        @foreach (var worktree in _worktrees)
+        {
+            <div class="stacked-item">
+                <div>
+                    <h3>@worktree.Name</h3>
+                    <p>@worktree.Summary</p>
+                    <div class="tag-row">
+                        <span class="pill muted">@worktree.UpdatedLabel</span>
+                        <span class="pill">@worktree.TasksLabel</span>
+                    </div>
+                </div>
+                <span class="pill @worktree.StatusClass">@worktree.Status</span>
+            </div>
+        }
     </div>
 </section>
+
+@code {
+    private IReadOnlyList<WorktreeItem> _worktrees = Array.Empty<WorktreeItem>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _worktrees = await DashboardService.GetWorktreesAsync();
+    }
+}

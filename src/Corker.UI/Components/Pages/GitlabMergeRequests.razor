@@ -1,0 +1,170 @@
+﻿@page "/gitlab-merge-requests"
+@using System.Linq
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+
+<section class="page-header">
+    <div>
+        <span class="page-kicker">Tools</span>
+        <h1>GitLab Merge Requests</h1>
+        <p class="page-subtitle">Track merge requests and pipeline health.</p>
+    </div>
+    <div class="page-actions">
+        <button class="ghost-button" type="button">Settings</button>
+        <button class="primary-button" type="button" @onclick="ReloadAsync">Refresh</button>
+    </div>
+</section>
+
+<section class="issue-toolbar">
+    <div class="search-box">
+        <input class="text-input" placeholder="Search merge requests" @bind="_searchQuery" />
+        <span class="pill muted">@FilteredMergeRequests.Count() MR(s)</span>
+    </div>
+    <div class="filter-group">
+        <button class="tab-pill @(IsFilter("Open"))" type="button" @onclick="() => SetFilter("Open")">Open</button>
+        <button class="tab-pill @(IsFilter("Review"))" type="button" @onclick="() => SetFilter("Review")">Review</button>
+        <button class="tab-pill @(IsFilter("Merged"))" type="button" @onclick="() => SetFilter("Merged")">Merged</button>
+    </div>
+</section>
+
+<section class="split-layout">
+    <div class="panel list-panel">
+        <div class="panel-header">
+            <div>
+                <h3>Merge Requests</h3>
+                <p>@_repositoryName</p>
+            </div>
+            <span class="pill green">Connected</span>
+        </div>
+        <div class="panel-body">
+            <div class="stacked-list compact">
+                @foreach (var mr in FilteredMergeRequests)
+                {
+                    <div class="stacked-item issue-item @(IsSelected(mr))" @onclick="() => SelectMergeRequest(mr)">
+                        <div>
+                            <h3>!@mr.Number - @mr.Title</h3>
+                            <p>@mr.Summary</p>
+                        </div>
+                        <span class="pill @mr.StatusClass">@mr.Status</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="panel detail-panel">
+        <div class="panel-header">
+            <div>
+                <h3>Merge Request Detail</h3>
+                <p>Review checks, labels, and branch targets.</p>
+            </div>
+            <button class="ghost-button" type="button">Open Review</button>
+        </div>
+        <div class="panel-body">
+            @if (_selectedMergeRequest is null)
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">🔍</div>
+                    <p>Select a merge request to view details</p>
+                    <span>Choose from the list on the left</span>
+                </div>
+            }
+            else
+            {
+                <div class="issue-detail">
+                    <h3>!@_selectedMergeRequest.Number - @_selectedMergeRequest.Title</h3>
+                    <p>@_selectedMergeRequest.Summary</p>
+                    <div class="tag-row">
+                        @foreach (var label in _selectedMergeRequest.Labels)
+                        {
+                            <span class="pill">@label</span>
+                        }
+                    </div>
+                    <div class="detail-grid">
+                        <div>
+                            <span class="stat-label">Author</span>
+                            <strong>@_selectedMergeRequest.Author</strong>
+                        </div>
+                        <div>
+                            <span class="stat-label">Target Branch</span>
+                            <strong>@_selectedMergeRequest.TargetBranch</strong>
+                        </div>
+                        <div>
+                            <span class="stat-label">Status</span>
+                            <strong>@_selectedMergeRequest.Status</strong>
+                        </div>
+                    </div>
+                    <div class="panel-actions">
+                        <button class="ghost-button" type="button">Create Task</button>
+                        <button class="primary-button" type="button">Auto Review</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    private readonly string _repositoryName = "gitlab.com/auto-claude";
+    private List<MergeRequestItem> _mergeRequests = new();
+    private MergeRequestItem? _selectedMergeRequest;
+    private string _searchQuery = string.Empty;
+    private string _activeFilter = "Open";
+
+    private IEnumerable<MergeRequestItem> FilteredMergeRequests
+    {
+        get
+        {
+            IEnumerable<MergeRequestItem> filtered = _mergeRequests;
+            if (!string.IsNullOrWhiteSpace(_searchQuery))
+            {
+                filtered = filtered.Where(mr => mr.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (_activeFilter == "Open")
+            {
+                filtered = filtered.Where(mr => mr.Status != "Merged");
+            }
+            else if (_activeFilter == "Merged")
+            {
+                filtered = filtered.Where(mr => mr.Status == "Merged");
+            }
+            else if (_activeFilter == "Review")
+            {
+                filtered = filtered.Where(mr => mr.Status == "Review");
+            }
+
+            return filtered;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _mergeRequests = (await DashboardService.GetMergeRequestsAsync()).ToList();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _mergeRequests = (await DashboardService.GetMergeRequestsAsync()).ToList();
+    }
+
+    private void SelectMergeRequest(MergeRequestItem mergeRequest)
+    {
+        _selectedMergeRequest = mergeRequest;
+    }
+
+    private string IsSelected(MergeRequestItem mergeRequest)
+    {
+        return _selectedMergeRequest == mergeRequest ? "active" : string.Empty;
+    }
+
+    private void SetFilter(string filter)
+    {
+        _activeFilter = filter;
+    }
+
+    private string IsFilter(string filter)
+    {
+        return _activeFilter == filter ? "active" : string.Empty;
+    }
+}

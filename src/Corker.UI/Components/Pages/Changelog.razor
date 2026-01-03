@@ -1,4 +1,6 @@
 ﻿@page "/changelog"
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="page-header">
     <div>
@@ -6,31 +8,33 @@
         <h1>Changelog</h1>
         <p class="page-subtitle">Latest releases and UI updates for Corker.</p>
     </div>
-    <button class="ghost-button" type="button">View all</button>
+    <div class="page-actions">
+        <button class="ghost-button" type="button">View all</button>
+        <button class="primary-button" type="button">Subscribe</button>
+    </div>
 </section>
 
 <section class="page-content">
-    <div class="stacked-list">
-        <div class="stacked-item">
-            <div>
-                <h3>v0.4.0 - UI parity update</h3>
-                <p>Kanban board layout, sidebar navigation, and dark theme refinement.</p>
+    <div class="timeline">
+        @foreach (var entry in _entries)
+        {
+            <div class="timeline-item">
+                <div class="timeline-marker"></div>
+                <div>
+                    <h3>@entry.Version</h3>
+                    <p>@entry.Summary</p>
+                </div>
+                <span class="pill @entry.StatusClass">@entry.Status</span>
             </div>
-            <span class="pill green">Latest</span>
-        </div>
-        <div class="stacked-item">
-            <div>
-                <h3>v0.3.2 - Orchestrator wiring</h3>
-                <p>Agent workflow coordination and telemetry foundation.</p>
-            </div>
-            <span class="pill">Stable</span>
-        </div>
-        <div class="stacked-item">
-            <div>
-                <h3>v0.3.0 - Infrastructure bridge</h3>
-                <p>LLamaSharp integration and process sandbox scaffolding.</p>
-            </div>
-            <span class="pill muted">Archived</span>
-        </div>
+        }
     </div>
 </section>
+
+@code {
+    private IReadOnlyList<ChangelogEntry> _entries = Array.Empty<ChangelogEntry>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _entries = await DashboardService.GetChangelogAsync();
+    }
+}

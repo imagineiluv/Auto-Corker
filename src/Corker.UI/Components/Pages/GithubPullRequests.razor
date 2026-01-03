@@ -1,0 +1,170 @@
+﻿@page "/github-prs"
+@using System.Linq
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+
+<section class="page-header">
+    <div>
+        <span class="page-kicker">Tools</span>
+        <h1>GitHub Pull Requests</h1>
+        <p class="page-subtitle">Review open pull requests and automation status.</p>
+    </div>
+    <div class="page-actions">
+        <button class="ghost-button" type="button">Settings</button>
+        <button class="primary-button" type="button" @onclick="ReloadAsync">Refresh</button>
+    </div>
+</section>
+
+<section class="issue-toolbar">
+    <div class="search-box">
+        <input class="text-input" placeholder="Search pull requests" @bind="_searchQuery" />
+        <span class="pill muted">@FilteredPullRequests.Count() PR(s)</span>
+    </div>
+    <div class="filter-group">
+        <button class="tab-pill @(IsFilter("Open"))" type="button" @onclick="() => SetFilter("Open")">Open</button>
+        <button class="tab-pill @(IsFilter("Review"))" type="button" @onclick="() => SetFilter("Review")">Review</button>
+        <button class="tab-pill @(IsFilter("Merged"))" type="button" @onclick="() => SetFilter("Merged")">Merged</button>
+    </div>
+</section>
+
+<section class="split-layout">
+    <div class="panel list-panel">
+        <div class="panel-header">
+            <div>
+                <h3>Pull Requests</h3>
+                <p>@_repositoryName</p>
+            </div>
+            <span class="pill green">Connected</span>
+        </div>
+        <div class="panel-body">
+            <div class="stacked-list compact">
+                @foreach (var pr in FilteredPullRequests)
+                {
+                    <div class="stacked-item issue-item @(IsSelected(pr))" @onclick="() => SelectPullRequest(pr)">
+                        <div>
+                            <h3>#{pr.Number} - @pr.Title</h3>
+                            <p>@pr.Summary</p>
+                        </div>
+                        <span class="pill @pr.StatusClass">@pr.Status</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="panel detail-panel">
+        <div class="panel-header">
+            <div>
+                <h3>Pull Request Detail</h3>
+                <p>Review checks, labels, and branch targets.</p>
+            </div>
+            <button class="ghost-button" type="button">Open Review</button>
+        </div>
+        <div class="panel-body">
+            @if (_selectedPullRequest is null)
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">🔍</div>
+                    <p>Select a pull request to view details</p>
+                    <span>Choose from the list on the left</span>
+                </div>
+            }
+            else
+            {
+                <div class="issue-detail">
+                    <h3>#{_selectedPullRequest.Number} - @_selectedPullRequest.Title</h3>
+                    <p>@_selectedPullRequest.Summary</p>
+                    <div class="tag-row">
+                        @foreach (var label in _selectedPullRequest.Labels)
+                        {
+                            <span class="pill">@label</span>
+                        }
+                    </div>
+                    <div class="detail-grid">
+                        <div>
+                            <span class="stat-label">Author</span>
+                            <strong>@_selectedPullRequest.Author</strong>
+                        </div>
+                        <div>
+                            <span class="stat-label">Target Branch</span>
+                            <strong>@_selectedPullRequest.TargetBranch</strong>
+                        </div>
+                        <div>
+                            <span class="stat-label">Status</span>
+                            <strong>@_selectedPullRequest.Status</strong>
+                        </div>
+                    </div>
+                    <div class="panel-actions">
+                        <button class="ghost-button" type="button">Create Task</button>
+                        <button class="primary-button" type="button">Auto Review</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    private readonly string _repositoryName = "phillonc/auto-claude";
+    private List<PullRequestItem> _pullRequests = new();
+    private PullRequestItem? _selectedPullRequest;
+    private string _searchQuery = string.Empty;
+    private string _activeFilter = "Open";
+
+    private IEnumerable<PullRequestItem> FilteredPullRequests
+    {
+        get
+        {
+            IEnumerable<PullRequestItem> filtered = _pullRequests;
+            if (!string.IsNullOrWhiteSpace(_searchQuery))
+            {
+                filtered = filtered.Where(pr => pr.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (_activeFilter == "Open")
+            {
+                filtered = filtered.Where(pr => pr.Status != "Merged");
+            }
+            else if (_activeFilter == "Merged")
+            {
+                filtered = filtered.Where(pr => pr.Status == "Merged");
+            }
+            else if (_activeFilter == "Review")
+            {
+                filtered = filtered.Where(pr => pr.Status == "Review");
+            }
+
+            return filtered;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _pullRequests = (await DashboardService.GetPullRequestsAsync()).ToList();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _pullRequests = (await DashboardService.GetPullRequestsAsync()).ToList();
+    }
+
+    private void SelectPullRequest(PullRequestItem pullRequest)
+    {
+        _selectedPullRequest = pullRequest;
+    }
+
+    private string IsSelected(PullRequestItem pullRequest)
+    {
+        return _selectedPullRequest == pullRequest ? "active" : string.Empty;
+    }
+
+    private void SetFilter(string filter)
+    {
+        _activeFilter = filter;
+    }
+
+    private string IsFilter(string filter)
+    {
+        return _activeFilter == filter ? "active" : string.Empty;
+    }
+}

@@ -1,4 +1,6 @@
 ﻿@page "/agent-terminals"
+@using Corker.Orchestrator.Models
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="page-header">
     <div>
@@ -7,66 +9,42 @@
         <p class="page-subtitle">Live command outputs and agent status snapshots.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button">Files</button>
+        <button class="ghost-button" type="button">File Explorer</button>
+        <button class="ghost-button" type="button">Restore Session</button>
         <button class="primary-button" type="button">+ New Terminal</button>
     </div>
 </section>
 
 <section class="terminal-grid">
-    <article class="terminal-card">
-        <header class="terminal-header">
-            <div class="terminal-badges">
-                <span class="pill green">Claude</span>
-                <span class="pill muted">Multi</span>
+    @foreach (var terminal in _terminals)
+    {
+        <article class="terminal-card">
+            <header class="terminal-header">
+                <div class="terminal-badges">
+                    <span class="pill green">Claude</span>
+                    <span class="pill muted">@terminal.Mode</span>
+                </div>
+                <div class="terminal-title">@terminal.Name</div>
+            </header>
+            <div class="terminal-preview">
+                @foreach (var line in terminal.Lines)
+                {
+                    <code>@line</code>
+                }
             </div>
-            <div class="terminal-title">Claude Code v2.6.9</div>
-        </header>
-        <div class="terminal-body">
-            <code>$ cd /Users/yourname/projects/autonomous-coding</code>
-            <code>$ Try "edit" to write a file</code>
-            <code># for shortcuts</code>
-        </div>
-    </article>
-    <article class="terminal-card">
-        <header class="terminal-header">
-            <div class="terminal-badges">
-                <span class="pill green">Claude</span>
-                <span class="pill muted">Multi</span>
+            <div class="terminal-footer">
+                <span class="pill @terminal.StatusClass">@terminal.Status</span>
+                <span class="pill muted">@terminal.ActivityLabel</span>
             </div>
-            <div class="terminal-title">Claude Code v2.6.9</div>
-        </header>
-        <div class="terminal-body">
-            <code>$ /Documents/Coding/autonomous-coding</code>
-            <code>$ Try "list" to see tasks</code>
-            <code># for shortcuts</code>
-        </div>
-    </article>
-    <article class="terminal-card">
-        <header class="terminal-header">
-            <div class="terminal-badges">
-                <span class="pill green">Claude</span>
-                <span class="pill muted">Multi</span>
-            </div>
-            <div class="terminal-title">Claude Code v2.6.9</div>
-        </header>
-        <div class="terminal-body">
-            <code>$ /Documents/Coding/autonomous-coding</code>
-            <code>$ Try "fix tests"</code>
-            <code># for shortcuts</code>
-        </div>
-    </article>
-    <article class="terminal-card">
-        <header class="terminal-header">
-            <div class="terminal-badges">
-                <span class="pill green">Claude</span>
-                <span class="pill muted">Multi</span>
-            </div>
-            <div class="terminal-title">Claude Code v2.6.9</div>
-        </header>
-        <div class="terminal-body">
-            <code>$ /Documents/Coding/autonomous-coding</code>
-            <code>$ Try "edit spec_runner.py"</code>
-            <code># for shortcuts</code>
-        </div>
-    </article>
+        </article>
+    }
 </section>
+
+@code {
+    private IReadOnlyList<TerminalSnapshot> _terminals = Array.Empty<TerminalSnapshot>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _terminals = await DashboardService.GetTerminalsAsync();
+    }
+}

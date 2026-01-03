@@ -51,4 +51,9 @@ public class AgentManager : IAgentService
         }
         return Task.CompletedTask;
     }
+
+    public Task<IReadOnlyList<AgentTask>> GetTasksAsync()
+    {
+        return Task.FromResult<IReadOnlyList<AgentTask>>(_tasks.ToList());
+    }
 }
