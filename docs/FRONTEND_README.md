@@ -1,56 +1,56 @@
-# Corker Frontend Documentation
+# Corker 프론트엔드 문서 (Frontend Documentation)
 
-The frontend of Corker is built with **.NET MAUI Blazor Hybrid**. This enables us to build a cross-platform native desktop application using modern Web technologies (HTML/CSS/Razor) for the UI logic.
+Corker의 프론트엔드는 **.NET MAUI Blazor Hybrid**로 구축되었습니다. 이를 통해 UI 로직에 모던 웹 기술(HTML/CSS/Razor)을 사용하면서도 크로스 플랫폼 네이티브 데스크톱 애플리케이션을 구축할 수 있습니다.
 
-## 📂 Project Structure
+## 📂 프로젝트 구조 (Project Structure)
 
-The `Corker.UI` project follows a standard Blazor structure:
+`Corker.UI` 프로젝트는 표준 Blazor 구조를 따릅니다:
 
--   `wwwroot/`: Static assets (CSS, JS, Images).
--   `Pages/`: Routable Blazor pages (`Home.razor`, `Settings.razor`).
--   `Components/`: Reusable UI components.
-    -   `Kanban/`: The drag-and-drop board components.
-    -   `Terminal/`: The terminal emulator components.
--   `Services/`: UI-specific services (ViewModel wrappers).
+-   `wwwroot/`: 정적 자산 (CSS, JS, 이미지).
+-   `Pages/`: 라우팅 가능한 Blazor 페이지 (`Home.razor`, `Settings.razor`).
+-   `Components/`: 재사용 가능한 UI 컴포넌트.
+    -   `Kanban/`: 드래그 앤 드롭 보드 컴포넌트.
+    -   `Terminal/`: 터미널 에뮬레이터 컴포넌트.
+-   `Services/`: UI 전용 서비스 (ViewModel 래퍼).
 
-## 🖥️ Key Components
+## 🖥️ 핵심 컴포넌트 (Key Components)
 
-### 1. Kanban Board
-Replaces the Electron-based board from Auto-Claude.
+### 1. 칸반 보드 (Kanban Board)
+Auto-Claude의 Electron 기반 보드를 대체합니다.
 
--   **Library**: We use a lightweight drag-and-drop library for Blazor (e.g., `dnd-kit` wrapper or native Blazor events).
--   **Data Binding**: The board binds to an `ObservableCollection<Task>` in the `Orchestrator`. Updates are pushed in real-time.
--   **Columns**:
-    -   **Planning**: Tasks currently being analyzed by the Planner Agent.
-    -   **In Progress**: Tasks actively being coded.
-    -   **Review**: Tasks waiting for QA or User verification.
-    -   **Done**: Completed and merged tasks.
+-   **라이브러리**: Blazor용 경량 드래그 앤 드롭 라이브러리를 사용합니다 (예: `dnd-kit` 래퍼 또는 네이티브 Blazor 이벤트).
+-   **데이터 바인딩**: 보드는 `Orchestrator`의 `ObservableCollection<Task>`에 바인딩됩니다. 업데이트는 실시간으로 푸시됩니다.
+-   **컬럼**:
+    -   **Planning**: Planner Agent가 분석 중인 작업.
+    -   **In Progress**: 활발하게 코딩 중인 작업.
+    -   **Review**: QA 또는 사용자 검증을 기다리는 작업.
+    -   **Done**: 완료되어 병합된 작업.
 
-### 2. Terminal View
-Provides transparency into the Agent's actions.
+### 2. 터미널 뷰 (Terminal View)
+에이전트의 행동에 대한 투명성을 제공합니다.
 
--   **Implementation**: A wrapper around **xterm.js**.
--   **Data Flow**:
-    1.  Backend Process (e.g., `dotnet build`) emits output.
-    2.  `ProcessService` captures output.
-    3.  `Orchestrator` publishes a `LogEvent`.
-    4.  Blazor Component receives the event and writes to the xterm.js instance via JS Interop.
+-   **구현**: **xterm.js** 래퍼.
+-   **데이터 흐름**:
+    1.  백엔드 프로세스(예: `dotnet build`)가 출력을 방출.
+    2.  `ProcessService`가 출력을 캡처.
+    3.  `Orchestrator`가 `LogEvent`를 게시.
+    4.  Blazor 컴포넌트가 이벤트를 수신하고 JS Interop을 통해 xterm.js 인스턴스에 기록.
 
-### 3. Agent Chat
-Allows the user to converse with the agents (e.g., to clarify requirements).
+### 3. 에이전트 채팅 (Agent Chat)
+사용자가 에이전트와 대화할 수 있게 합니다 (예: 요구사항 명확화).
 
--   Standard Chat UI (User bubble / Bot bubble).
--   Directly interacts with the Semantic Kernel Chat History.
+-   표준 채팅 UI (사용자 말풍선 / 봇 말풍선).
+-   Semantic Kernel Chat History와 직접 상호작용합니다.
 
-## 🔌 Communication with Backend
+## 🔌 백엔드 통신 (Communication with Backend)
 
-Since this is a Monolith (not a client-server web app), the UI communicates with the Backend via **Dependency Injection**.
+이것은 클라이언트-서버 웹 앱이 아닌 모놀리스(Monolith)이므로, UI는 **의존성 주입(Dependency Injection)**을 통해 백엔드와 통신합니다.
 
--   The `Corker.UI` project references `Corker.Orchestrator`.
--   Services like `IAgentManager` are injected into Blazor pages (`@inject IAgentManager AgentManager`).
--   **UI Thread Safety**: All updates from the backend (which run on background threads) must be marshalled to the UI thread using `InvokeAsync`.
+-   `Corker.UI` 프로젝트는 `Corker.Orchestrator`를 참조합니다.
+-   `IAgentManager` 같은 서비스는 Blazor 페이지에 주입됩니다 (`@inject IAgentManager AgentManager`).
+-   **UI 스레드 안전성**: 백엔드(백그라운드 스레드에서 실행됨)로부터의 모든 업데이트는 `InvokeAsync`를 사용하여 UI 스레드로 마샬링되어야 합니다.
 
-## 🎨 Styling
+## 🎨 스타일링 (Styling)
 
--   **CSS Framework**: We use **Tailwind CSS** (integrated via build process) or a Blazor component library like **MudBlazor** for consistent theming.
--   **Dark Mode**: Supported out of the box, matching the system preference.
+-   **CSS 프레임워크**: 일관된 테마를 위해 **Tailwind CSS** (빌드 프로세스를 통해 통합) 또는 **MudBlazor** 같은 Blazor 컴포넌트 라이브러리를 사용합니다.
+-   **다크 모드**: 시스템 설정을 따르며 기본적으로 지원됩니다.

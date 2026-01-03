@@ -1,72 +1,72 @@
-# Corker Backend Documentation
+# Corker 백엔드 문서 (Backend Documentation)
 
-The backend of Corker is the "brain" and "muscle" of the autonomous engineer. It replaces the Python-based agents of Auto-Claude with a robust C# architecture powered by Semantic Kernel and LLamaSharp.
+Corker의 백엔드는 자율 엔지니어의 "두뇌"이자 "근육"입니다. 이는 Auto-Claude의 Python 기반 에이전트를 Semantic Kernel과 LLamaSharp으로 구동되는 강력한 C# 아키텍처로 대체합니다.
 
-## 📂 Project Structure
+## 📂 프로젝트 구조 (Project Structure)
 
--   **`Corker.Core`**: Domain layer.
--   **`Corker.Orchestrator`**: Application layer (Agents).
--   **`Corker.Infrastructure`**: Infrastructure layer (AI, Git, OS).
+-   **`Corker.Core`**: 도메인 레이어.
+-   **`Corker.Orchestrator`**: 애플리케이션 레이어 (에이전트).
+-   **`Corker.Infrastructure`**: 인프라 레이어 (AI, Git, OS).
 
-## 🧠 AI Layer: LFM2 & LLamaSharp
+## 🧠 AI 레이어: LFM2 & LLamaSharp
 
-### Why LLamaSharp?
-We use `LLamaSharp` to run GGUF models locally. This allows us to load the **LFM2 (Liquid Foundation Model 2)** model directly into the application memory without needing a separate Python server.
+### 왜 LLamaSharp인가?
+우리는 로컬에서 GGUF 모델을 실행하기 위해 `LLamaSharp`을 사용합니다. 이를 통해 별도의 Python 서버 없이 **LFM2 (Liquid Foundation Model 2)** 모델을 애플리케이션 메모리에 직접 로드할 수 있습니다.
 
-### Configuration
-The `AIService` in `Corker.Infrastructure` looks for a `model_path` configuration.
+### 설정 (Configuration)
+`Corker.Infrastructure`의 `AIService`는 `model_path` 설정을 찾습니다.
 
 ```json
 {
   "AI": {
     "ModelPath": "models/lfm2-1.2b-q4.gguf",
     "ContextSize": 4096,
-    "GpuLayerCount": 0  // Set >0 to offload to GPU
+    "GpuLayerCount": 0  // GPU로 오프로드하려면 0보다 크게 설정
   }
 }
 ```
 
-### Semantic Kernel Integration
-We implement a custom `ITextGenerationService` that wraps `LLamaSharp`. This allows Semantic Kernel to treat the local LFM2 model just like it would treat OpenAI or Azure.
+### Semantic Kernel 통합
+우리는 `LLamaSharp`을 래핑하는 커스텀 `ITextGenerationService`를 구현합니다. 이를 통해 Semantic Kernel은 로컬 LFM2 모델을 OpenAI나 Azure와 동일한 방식으로 취급할 수 있습니다.
 
-## 🤖 Agents
+## 🤖 에이전트 (Agents)
 
-Corker uses a multi-agent system managed by the **Orchestrator**.
+Corker는 **Orchestrator**가 관리하는 멀티 에이전트 시스템을 사용합니다.
 
 ### 1. Planner Agent
--   **Role**: Technical Lead.
--   **Input**: User's high-level request (e.g., "Add a login page").
--   **Output**: A list of steps (Plan), where each step corresponds to a specific implementation task.
--   **Tools**: `RepositoryReader`, `DependencyAnalyzer`.
+-   **역할**: 기술 리드 (Technical Lead).
+-   **입력**: 사용자의 고수준 요청 (예: "로그인 페이지 추가").
+-   **출력**: 단계 목록(Plan). 각 단계는 구체적인 구현 작업에 해당합니다.
+-   **도구**: `RepositoryReader`, `DependencyAnalyzer`.
 
 ### 2. Coder Agent
--   **Role**: Software Engineer.
--   **Input**: A single step from the Plan.
--   **Action**: Writes code, creates files, and runs initial syntax checks.
--   **Tools**: `FileEditor`, `SyntaxChecker`.
+-   **역할**: 소프트웨어 엔지니어.
+-   **입력**: 계획의 단일 단계.
+-   **동작**: 코드를 작성하고, 파일을 생성하며, 초기 문법 검사를 실행합니다.
+-   **도구**: `FileEditor`, `SyntaxChecker`.
 
 ### 3. Reviewer Agent (QA)
--   **Role**: QA Engineer.
--   **Input**: The code produced by the Coder Agent.
--   **Action**: Runs the project's test suite or build command.
--   **Feedback**: If tests fail, it sends the error log back to the Coder Agent for a retry.
+-   **역할**: QA 엔지니어.
+-   **입력**: Coder Agent가 생성한 코드.
+-   **동작**: 프로젝트의 테스트 스위트나 빌드 명령어를 실행합니다.
+-   **피드백**: 테스트 실패 시, 에러 로그를 Coder Agent에게 보내 재시도를 요청합니다.
 
-## 🛠️ Infrastructure Tools
+## 🛠️ 인프라 도구 (Infrastructure Tools)
 
 ### Git Worktrees
-To allow agents to work safely without breaking the main branch, Corker uses `LibGit2Sharp` to manage **Worktrees**.
--   Every task gets a dedicated folder: `.corker/worktrees/task-123/`.
--   The Coder Agent operates *only* within this directory.
--   Once approved, the changes are merged back to `main`.
+에이전트가 메인 브랜치를 깨뜨리지 않고 안전하게 작업할 수 있도록, Corker는 `LibGit2Sharp`을 사용하여 **Worktree**를 관리합니다.
+-   모든 작업은 전용 폴더를 가집니다: `.corker/worktrees/task-123/`.
+-   Coder Agent는 *오직* 이 디렉토리 내에서만 작업합니다.
+-   승인되면 변경 사항이 `main`으로 병합됩니다.
 
-### Process Sandbox
-Agents execute shell commands (like `dotnet build` or `npm test`).
--   We wrap `System.Diagnostics.Process`.
--   **Security**: Commands are validated against an allowlist to prevent accidental system damage (e.g., preventing `rm -rf /`).
--   **Output**: `StdOut` and `StdErr` are captured in real-time and streamed to the UI.
+### 프로세스 샌드박스 (Process Sandbox)
+에이전트는 쉘 명령어(예: `dotnet build` 또는 `npm test`)를 실행합니다.
+-   `System.Diagnostics.Process`를 래핑합니다.
+-   **보안**: 시스템 손상을 방지하기 위해 명령어는 허용 목록(Allowlist)에 대해 검증됩니다 (예: `rm -rf /` 방지).
+-   **출력**: `StdOut`과 `StdErr`는 실시간으로 캡처되어 UI로 스트리밍됩니다.
 
-## 🧠 Memory (RAG)
+## 🧠 메모리 (RAG)
 
-We use **Microsoft.KernelMemory** to give agents "Long Term Memory".
--   **Indexing**: On startup, Corker scans the codebase and generates embeddings for all source files.
--   **Retrieval**: When an agent needs to "Modify the User Service", it queries the memory to find where `UserService.cs` is and what other files depend on it.
+우리는 에이전트에게 "장기 기억(Long Term Memory)"을 제공하기 위해 **Microsoft.KernelMemory**를 사용합니다.
+-   **인덱싱**: 시작 시, Corker는 코드베이스를 스캔하고 모든 소스 파일에 대한 임베딩을 생성합니다.
+-   **검색**: 에이전트가 "User 서비스를 수정해야 해"라고 할 때, 메모리를 조회하여 `UserService.cs`의 위치와 의존하는 다른 파일들을 찾아냅니다.
