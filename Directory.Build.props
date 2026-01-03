@@ -1,0 +1,28 @@
+<Project>
+  <!--
+      Global Build Configuration
+      Bolt Optimization: High-Performance .NET 9 Foundation
+  -->
+  <PropertyGroup>
+    <!-- Modern C# Standards -->
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!--
+      ⚡ Bolt: Performance Optimizations
+      1. TieredPGO: Enables Tiered Profile-Guided Optimization for better runtime code generation.
+      2. GarbageCollectionAdaptationMode: Enables Dynamic Adaptive Sizing (DATAS) for GC to adapt to memory pressure.
+      3. AccelerateBuildsInVisualStudio: Faster incremental builds for developers.
+    -->
+    <TieredPGO>true</TieredPGO>
+    <GarbageCollectionAdaptationMode>1</GarbageCollectionAdaptationMode>
+    <AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
+
+    <!-- Analysis & Code Quality -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>
