@@ -2,6 +2,7 @@
 @using System.Linq
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@inject NavigationManager NavigationManager
 
 <section class="page-header">
     <div>
@@ -10,7 +11,7 @@
         <p class="page-subtitle">Track issues imported from connected repositories.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button">Settings</button>
+        <button class="ghost-button" type="button" @onclick="OpenSettings">Settings</button>
         <button class="primary-button" type="button" @onclick="SyncIssuesAsync">Sync</button>
     </div>
 </section>
@@ -60,7 +61,7 @@
                 <h3>Issue Detail</h3>
                 <p>Review description, labels, and next steps.</p>
             </div>
-            <button class="ghost-button" type="button">Investigate</button>
+            <button class="ghost-button" type="button" @onclick="InvestigateAsync">Investigate</button>
         </div>
         <div class="panel-body">
             @if (_selectedIssue is null)
@@ -97,8 +98,8 @@
                         </div>
                     </div>
                     <div class="panel-actions">
-                        <button class="ghost-button" type="button">Create Task</button>
-                        <button class="primary-button" type="button">Auto-fix</button>
+                        <button class="ghost-button" type="button" @onclick="CreateTaskAsync">Create Task</button>
+                        <button class="primary-button" type="button" @onclick="AutoFixAsync">Auto-fix</button>
                     </div>
                 </div>
             }
@@ -144,6 +145,44 @@
     private async Task SyncIssuesAsync()
     {
         _issues = (await DashboardService.SyncIssuesAsync()).ToList();
+    }
+
+    private void OpenSettings()
+    {
+        NavigationManager.NavigateTo("/settings?tab=project");
+    }
+
+    private async Task InvestigateAsync()
+    {
+        if (_selectedIssue is null)
+        {
+            return;
+        }
+
+        _issues = (await DashboardService.InvestigateGithubIssueAsync(_selectedIssue.Number)).ToList();
+        _selectedIssue = _issues.FirstOrDefault(issue => issue.Number == _selectedIssue.Number);
+    }
+
+    private async Task CreateTaskAsync()
+    {
+        if (_selectedIssue is null)
+        {
+            return;
+        }
+
+        _issues = (await DashboardService.CreateTaskFromGithubIssueAsync(_selectedIssue.Number)).ToList();
+        _selectedIssue = _issues.FirstOrDefault(issue => issue.Number == _selectedIssue.Number);
+    }
+
+    private async Task AutoFixAsync()
+    {
+        if (_selectedIssue is null)
+        {
+            return;
+        }
+
+        _issues = (await DashboardService.AutoFixGithubIssueAsync(_selectedIssue.Number)).ToList();
+        _selectedIssue = _issues.FirstOrDefault(issue => issue.Number == _selectedIssue.Number);
     }
 
     private void SelectIssue(IssueItem issue)

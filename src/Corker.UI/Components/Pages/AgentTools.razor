@@ -1,6 +1,7 @@
 ﻿@page "/agent-tools"
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@inject NavigationManager NavigationManager
 
 <section class="page-header">
     <div>
@@ -9,7 +10,7 @@
         <p class="page-subtitle">Manage automations available to your local-first agents.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button">Manage</button>
+        <button class="ghost-button" type="button" @onclick="OpenManageSettings">Manage</button>
         <button class="primary-button" type="button" @onclick="ReloadAsync">Refresh</button>
     </div>
 </section>
@@ -25,8 +26,8 @@
                 </header>
                 <p>@tool.Summary</p>
                 <div class="panel-actions">
-                    <button class="ghost-button" type="button">Details</button>
-                    <button class="primary-button" type="button">@tool.ActionLabel</button>
+                    <button class="ghost-button" type="button" @onclick="() => ShowDetailsAsync(tool)">Details</button>
+                    <button class="primary-button" type="button" @onclick="() => RunToolAsync(tool)">@tool.ActionLabel</button>
                 </div>
             </article>
         }
@@ -44,5 +45,20 @@
     private async Task ReloadAsync()
     {
         _tools = await DashboardService.GetAgentToolsAsync();
+    }
+
+    private void OpenManageSettings()
+    {
+        NavigationManager.NavigateTo("/settings?tab=agents");
+    }
+
+    private async Task ShowDetailsAsync(AgentToolItem tool)
+    {
+        _tools = await DashboardService.ShowAgentToolDetailsAsync(tool.Name);
+    }
+
+    private async Task RunToolAsync(AgentToolItem tool)
+    {
+        _tools = await DashboardService.RunAgentToolAsync(tool.Name);
     }
 }

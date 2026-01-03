@@ -9,8 +9,8 @@
         <p class="page-subtitle">Latest releases and UI updates for Corker.</p>
     </div>
     <div class="page-actions">
-        <button class="ghost-button" type="button">View all</button>
-        <button class="primary-button" type="button">Subscribe</button>
+        <button class="ghost-button" type="button" @onclick="ViewAllAsync">View all</button>
+        <button class="primary-button" type="button" @onclick="SubscribeAsync">@_subscribeLabel</button>
     </div>
 </section>
 
@@ -32,9 +32,22 @@
 
 @code {
     private IReadOnlyList<ChangelogEntry> _entries = Array.Empty<ChangelogEntry>();
+    private string _subscribeLabel = "Subscribe";
 
     protected override async Task OnInitializedAsync()
     {
+        _entries = await DashboardService.GetChangelogAsync();
+    }
+
+    private async Task ViewAllAsync()
+    {
+        _entries = await DashboardService.LoadFullChangelogAsync();
+    }
+
+    private async Task SubscribeAsync()
+    {
+        var subscribed = await DashboardService.SubscribeToChangelogAsync();
+        _subscribeLabel = subscribed ? "Subscribed" : "Subscribe";
         _entries = await DashboardService.GetChangelogAsync();
     }
 }
