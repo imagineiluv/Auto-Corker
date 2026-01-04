@@ -22,7 +22,7 @@
 <section class="kanban-board">
     @foreach (var column in _columns)
     {
-        <div class="kanban-column @GetColumnClass(column.Key)">
+        <div class="kanban-column @GetColumnClass(column.Key)" @ondrop="() => OnDrop(column.Key)" @ondragover:preventDefault>
             <header class="kanban-column-header">
                 <div class="column-title">
                     <h2>@column.Title</h2>
@@ -48,7 +48,7 @@
             {
                 @foreach (var task in column.Tasks)
                 {
-                    <article class="task-card">
+                    <article class="task-card" draggable="true" @ondragstart="() => OnDragStart(task)" @ondrop="() => OnDrop(column.Key)" @ondragover:preventDefault>
                         <div class="task-header">
                             <div class="task-title">@task.Title</div>
                             <span class="pill @task.StatusClass">@task.StatusLabel</span>
@@ -75,7 +75,6 @@
                         </div>
                         <div class="task-footer">
                             <span class="pill">@task.Owner</span>
-                            <button class="ghost-button" type="button" @onclick="() => MoveTaskAsync(task)">Next</button>
                         </div>
                     </article>
                 }
@@ -192,18 +191,33 @@
         OpenCreateTaskModal();
     }
 
-    private async Task MoveTaskAsync(TaskCard task)
+    private TaskCard? _draggedTask;
+
+    private void OnDragStart(TaskCard task)
     {
-        var nextStatus = task.Status switch
+        _draggedTask = task;
+    }
+
+    private async Task OnDrop(string newColumnKey)
+    {
+        if (_draggedTask == null) return;
+
+        var newStatus = newColumnKey switch
         {
-            Corker.Core.Entities.TaskStatus.Pending => Corker.Core.Entities.TaskStatus.InProgress,
-            Corker.Core.Entities.TaskStatus.InProgress => Corker.Core.Entities.TaskStatus.Review,
-            Corker.Core.Entities.TaskStatus.Review => Corker.Core.Entities.TaskStatus.Done,
-            _ => Corker.Core.Entities.TaskStatus.Done
+            "backlog" => Corker.Core.Entities.TaskStatus.Pending,
+            "in-progress" => Corker.Core.Entities.TaskStatus.InProgress,
+            "human-review" => Corker.Core.Entities.TaskStatus.Review,
+            "done" => Corker.Core.Entities.TaskStatus.Done,
+            _ => Corker.Core.Entities.TaskStatus.Pending
         };
 
-        await DashboardService.UpdateTaskStatusAsync(task.Id, nextStatus);
-        await ReloadAsync();
+        if (_draggedTask.Status != newStatus)
+        {
+            await DashboardService.UpdateTaskStatusAsync(_draggedTask.Id, newStatus);
+            await ReloadAsync();
+        }
+
+        _draggedTask = null;
     }
 
     private static string GetColumnClass(string columnKey)

@@ -1,8 +1,10 @@
 ﻿using Corker.Core.Interfaces;
 using Corker.Infrastructure.AI;
+using Corker.Infrastructure.Data;
 using Corker.Infrastructure.File;
 using Corker.Infrastructure.Git;
 using Corker.Infrastructure.Memory;
+using Corker.Infrastructure.Process;
 using Corker.Orchestrator;
 using Corker.Orchestrator.Agents;
 using Corker.Orchestrator.Services;
@@ -55,6 +57,12 @@ public static class MauiProgram
 		// Infrastructure
 		builder.Services.AddSingleton<IGitService, GitService>();
 		builder.Services.AddSingleton<IFileSystemService, FileSystemService>();
+		builder.Services.AddSingleton<IProcessService, ProcessSandboxService>();
+
+        // Persistence
+        var dbPath = Path.Combine(AppContext.BaseDirectory, "corker.db");
+        builder.Services.AddSingleton<ITaskRepository>(sp =>
+            new LiteDbTaskRepository(dbPath, sp.GetRequiredService<ILogger<LiteDbTaskRepository>>()));
 
 		// Memory
 		var modelPath = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH")

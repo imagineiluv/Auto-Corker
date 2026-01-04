@@ -21,14 +21,29 @@ public class AgentLoopTests
 
         var mockFileSystem = new Mock<IFileSystemService>();
         var mockGit = new Mock<IGitService>();
+        var mockProcess = new Mock<IProcessService>();
+        var mockRepo = new Mock<ITaskRepository>();
+
+        // Mock success build
+        mockProcess.Setup(x => x.ExecuteCommandAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+                   .ReturnsAsync((0, "Build Succeeded", ""));
+
+        // Mock Repo
+        mockRepo.Setup(x => x.CreateAsync(It.IsAny<AgentTask>()))
+                .Returns<AgentTask>(t => Task.FromResult(t));
+        mockRepo.Setup(x => x.GetByIdAsync(It.IsAny<Guid>()))
+                .ReturnsAsync((Guid id) => new AgentTask { Id = id, Title = "Test Task" });
+        mockRepo.Setup(x => x.GetLogsAsync(It.IsAny<int>()))
+                .ReturnsAsync(new List<string>());
+
         var mockLogger = new Mock<ILogger<AgentManager>>();
         var mockPlannerLogger = new Mock<ILogger<PlannerAgent>>();
         var mockCoderLogger = new Mock<ILogger<CoderAgent>>();
 
         var planner = new PlannerAgent(mockLlm.Object, mockPlannerLogger.Object);
-        var coder = new CoderAgent(mockLlm.Object, mockFileSystem.Object, mockGit.Object, mockCoderLogger.Object);
+        var coder = new CoderAgent(mockLlm.Object, mockFileSystem.Object, mockGit.Object, mockProcess.Object, mockCoderLogger.Object);
 
-        var agentManager = new AgentManager(mockLlm.Object, planner, coder, mockLogger.Object);
+        var agentManager = new AgentManager(mockLlm.Object, planner, coder, mockRepo.Object, mockLogger.Object);
 
         // Act
         var task = await agentManager.CreateTaskAsync("Test Task", "Description");

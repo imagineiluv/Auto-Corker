@@ -10,26 +10,26 @@ public class AgentManager : IAgentService
     private readonly ILLMService _llmService;
     private readonly PlannerAgent _plannerAgent;
     private readonly CoderAgent _coderAgent;
+    private readonly ITaskRepository _repository;
     private readonly ILogger<AgentManager> _logger;
-    private readonly List<AgentTask> _tasks = new();
 
-    // Log storage
-    private readonly List<string> _logs = new();
     public event EventHandler<string>? OnLogReceived;
 
     public AgentManager(
         ILLMService llmService,
         PlannerAgent plannerAgent,
         CoderAgent coderAgent,
+        ITaskRepository repository,
         ILogger<AgentManager> logger)
     {
         _llmService = llmService;
         _plannerAgent = plannerAgent;
         _coderAgent = coderAgent;
+        _repository = repository;
         _logger = logger;
     }
 
-    public Task<AgentTask> CreateTaskAsync(string title, string description)
+    public async Task<AgentTask> CreateTaskAsync(string title, string description)
     {
         var task = new AgentTask
         {
@@ -37,29 +37,31 @@ public class AgentManager : IAgentService
             Description = description,
             Status = Core.Entities.TaskStatus.Pending
         };
-        _tasks.Add(task);
-        _logger.LogInformation("Created task: {Title}", title);
-        return Task.FromResult(task);
+
+        await _repository.CreateAsync(task);
+        AddLog($"Created task: {title}");
+        return task;
     }
 
-    public Task AssignTaskAsync(Guid taskId, Guid agentId)
+    public async Task AssignTaskAsync(Guid taskId, Guid agentId)
     {
-        var task = _tasks.FirstOrDefault(t => t.Id == taskId);
+        var task = await _repository.GetByIdAsync(taskId);
         if (task != null)
         {
             task.AssignedAgentId = agentId;
-            _logger.LogInformation("Assigned task {TaskId} to agent {AgentId}", taskId, agentId);
+            await _repository.UpdateAsync(task);
+            AddLog($"Assigned task {taskId} to agent {agentId}");
         }
-        return Task.CompletedTask;
     }
 
-    public Task UpdateTaskStatusAsync(Guid taskId, Core.Entities.TaskStatus status)
+    public async Task UpdateTaskStatusAsync(Guid taskId, Core.Entities.TaskStatus status)
     {
-        var task = _tasks.FirstOrDefault(t => t.Id == taskId);
-        if (task == null) return Task.CompletedTask;
+        var task = await _repository.GetByIdAsync(taskId);
+        if (task == null) return;
 
         task.Status = status;
-        _logger.LogInformation("Updated task {TaskId} status to {Status}", taskId, status);
+        await _repository.UpdateAsync(task);
+        AddLog($"Updated task {taskId} status to {status}");
 
         // TRIGGER THE AGENT LOOP
         if (status == Core.Entities.TaskStatus.InProgress)
@@ -67,30 +69,29 @@ public class AgentManager : IAgentService
             // Run in background so we don't block the UI
             _ = RunAgentLoopAsync(task);
         }
-
-        return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<AgentTask>> GetTasksAsync()
+    public async Task<IReadOnlyList<AgentTask>> GetTasksAsync()
     {
-        return Task.FromResult<IReadOnlyList<AgentTask>>(_tasks.ToList());
+        return await _repository.GetAllAsync();
     }
 
     public IReadOnlyList<string> GetLogs()
     {
-        lock (_logs)
-        {
-            return _logs.ToList();
-        }
+        // For simplicity, we sync-wait here or change interface to async.
+        // The interface uses IReadOnlyList<string> directly, so we block.
+        // Ideally IAgentService.GetLogs should be GetLogsAsync.
+        // But for parity with existing code, let's just .Result (bad practice but quick fix)
+        // OR better: cache recent logs in memory for UI.
+        // Let's rely on Repository completely.
+        return _repository.GetLogsAsync().Result;
     }
 
     private void AddLog(string message)
     {
-        lock (_logs)
-        {
-            _logs.Add(message);
-        }
         _logger.LogInformation(message);
+        // Fire and forget persistence for logs to avoid blocking
+        Task.Run(() => _repository.AddLogAsync(message));
         OnLogReceived?.Invoke(this, message);
     }
 
