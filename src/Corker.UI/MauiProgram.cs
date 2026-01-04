@@ -1,6 +1,13 @@
 ﻿using Corker.Core.Interfaces;
 using Corker.Infrastructure.AI;
+using Corker.Infrastructure.Data;
+using Corker.Infrastructure.File;
+using Corker.Infrastructure.Git;
+using Corker.Infrastructure.Memory;
+using Corker.Infrastructure.Process;
+using Corker.Infrastructure.Settings;
 using Corker.Orchestrator;
+using Corker.Orchestrator.Agents;
 using Corker.Orchestrator.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
@@ -47,6 +54,30 @@ public static class MauiProgram
 		});
 		builder.Services.AddSingleton<ILLMStatusProvider>(serviceProvider =>
 			(ILLMStatusProvider)serviceProvider.GetRequiredService<ILLMService>());
+
+		// Infrastructure
+		builder.Services.AddSingleton<IGitService, GitService>();
+		builder.Services.AddSingleton<IFileSystemService, FileSystemService>();
+		builder.Services.AddSingleton<IProcessService, ProcessSandboxService>();
+		builder.Services.AddSingleton<ISettingsService, YamlSettingsService>();
+
+        // Persistence
+        var dbPath = Path.Combine(AppContext.BaseDirectory, "corker.db");
+        builder.Services.AddSingleton<ITaskRepository>(sp =>
+            new LiteDbTaskRepository(dbPath, sp.GetRequiredService<ILogger<LiteDbTaskRepository>>()));
+
+		// Memory
+		var modelPath = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH")
+				?? Path.Combine(AppContext.BaseDirectory, "models", "lfm2.gguf");
+		var memoryStoragePath = Path.Combine(AppContext.BaseDirectory, "memory_store");
+		builder.Services.AddCorkerMemory(modelPath, memoryStoragePath);
+		builder.Services.AddSingleton<MemoryService>();
+
+		// Agents
+		builder.Services.AddSingleton<PlannerAgent>();
+		builder.Services.AddSingleton<CoderAgent>();
+
+		// Services
 		builder.Services.AddSingleton<IAgentService, AgentManager>();
 		builder.Services.AddSingleton<OrchestratorService>();
 		builder.Services.AddSingleton<WorkspaceDashboardService>();

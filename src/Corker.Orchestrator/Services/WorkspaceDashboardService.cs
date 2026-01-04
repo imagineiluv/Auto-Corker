@@ -51,7 +51,7 @@ public class WorkspaceDashboardService
 
     public async Task<IReadOnlyList<KanbanColumn>> GetKanbanAsync()
     {
-        await EnsureSeededAsync();
+        // No seeding needed, we rely on persistence now
         var tasks = await _agentService.GetTasksAsync();
         var cards = tasks.Select(BuildTaskCard).ToList();
 
@@ -59,7 +59,7 @@ public class WorkspaceDashboardService
         {
             new("backlog", "Backlog", cards.Where(card => card.Status == TaskStatus.Pending).ToList()),
             new("in-progress", "In Progress", cards.Where(card => card.Status == TaskStatus.InProgress).ToList()),
-            new("ai-review", "AI Review", new List<TaskCard>()),
+            new("ai-review", "AI Review", new List<TaskCard>()), // Could map to Review status if we differentiate
             new("human-review", "Human Review", cards.Where(card => card.Status == TaskStatus.Review).ToList()),
             new("done", "Done", cards.Where(card => card.Status == TaskStatus.Done).ToList())
         };
