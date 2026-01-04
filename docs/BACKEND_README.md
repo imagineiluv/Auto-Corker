@@ -26,6 +26,41 @@ Corker의 백엔드는 자율 엔지니어의 "두뇌"이자 "근육"입니다. 
 }
 ```
 
+### 네이티브 백엔드 설치 (CPU/GPU)
+LLamaSharp는 네이티브 라이브러리를 필요로 하므로, 백엔드 패키지를 통해 런타임 파일을 함께 배포합니다.
+
+- **CPU**: `LLamaSharp.Backend.Cpu`
+- **GPU(CUDA 12)**: `LLamaSharp.Backend.Cuda12`
+
+> GPU 사용 시에는 시스템에 **CUDA 12 런타임**과 соответств하는 드라이버가 설치되어 있어야 합니다.
+
+#### 출력 폴더 구조
+빌드 시 아래 경로에 네이티브 라이브러리가 복사됩니다.
+
+```
+runtimes/
+  cpu/
+    llama.*
+    ggml.*
+  cuda/
+    llama.*
+    (cuda 관련 .dll/.so)
+```
+
+#### 설정 예시
+`appsettings.json`에서 백엔드를 지정하세요.
+
+```json
+{
+  "AI": {
+    "ModelPath": "models/lfm2-1.2b-q4.gguf",
+    "ContextSize": 4096,
+    "GpuLayerCount": 99,
+    "AIBackend": "Cuda"
+  }
+}
+```
+
 ### Semantic Kernel 통합
 우리는 `LLamaSharp`을 래핑하는 커스텀 `ITextGenerationService`를 구현합니다. 이를 통해 Semantic Kernel은 로컬 LFM2 모델을 OpenAI나 Azure와 동일한 방식으로 취급할 수 있습니다.
 
