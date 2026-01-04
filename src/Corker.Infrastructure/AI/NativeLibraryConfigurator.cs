@@ -53,10 +53,10 @@ public static class NativeLibraryConfigurator
                 // Use LLamaSharp's configuration to specify the library path
                 // WithLibrary requires both library path and llava path (can be null if not used)
                 LLama.Native.NativeLibraryConfig.All.WithLibrary(runtimePath, null);
-                
+
                 // Also load explicitly just in case
                 NativeLibrary.Load(runtimePath);
-                
+
                 logger.LogInformation("Successfully loaded native library for backend: {Backend}", backend);
                 try
                 {
