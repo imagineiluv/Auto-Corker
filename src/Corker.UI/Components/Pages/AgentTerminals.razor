@@ -38,14 +38,55 @@
             </div>
         </article>
     }
+
+    <!-- Live Agent Logs -->
+    <article class="terminal-card">
+        <header class="terminal-header">
+            <div class="terminal-badges">
+                <span class="pill purple">Agent Loop</span>
+                <span class="pill muted">Live</span>
+            </div>
+            <div class="terminal-title">Main Agent Process</div>
+        </header>
+        <div class="terminal-preview">
+            @foreach (var line in _liveLogs)
+            {
+                <div class="log-line">@line</div>
+            }
+        </div>
+        <div class="terminal-footer">
+            <span class="pill green">Active</span>
+            <span class="pill muted">Streaming</span>
+        </div>
+    </article>
 </section>
 
 @code {
     private IReadOnlyList<TerminalSnapshot> _terminals = Array.Empty<TerminalSnapshot>();
+    private List<string> _liveLogs = new();
+
+    [Inject] private Corker.Core.Interfaces.IAgentService AgentService { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
         _terminals = await DashboardService.GetTerminalsAsync();
+        _liveLogs = AgentService.GetLogs().ToList();
+
+        AgentService.OnLogReceived += HandleLog;
+    }
+
+    public void Dispose()
+    {
+        if (AgentService != null)
+        {
+            AgentService.OnLogReceived -= HandleLog;
+        }
+    }
+
+    private void HandleLog(object? sender, string message)
+    {
+        _liveLogs.Add(message);
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task OpenFileExplorerAsync()

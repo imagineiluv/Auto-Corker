@@ -24,13 +24,13 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
 
     public string ModelPath => _modelPath;
 
-    public bool IsAvailable => File.Exists(_modelPath);
+    public bool IsAvailable => System.IO.File.Exists(_modelPath);
 
     public bool IsInitialized => _executor != null;
 
     public void Initialize()
     {
-        if (!File.Exists(_modelPath))
+        if (!System.IO.File.Exists(_modelPath))
         {
             _logger.LogWarning("Model file not found at {ModelPath}. AI features will be disabled.", _modelPath);
             return;

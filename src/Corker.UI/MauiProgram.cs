@@ -1,6 +1,9 @@
 ﻿using Corker.Core.Interfaces;
 using Corker.Infrastructure.AI;
+using Corker.Infrastructure.File;
+using Corker.Infrastructure.Git;
 using Corker.Orchestrator;
+using Corker.Orchestrator.Agents;
 using Corker.Orchestrator.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
@@ -47,6 +50,16 @@ public static class MauiProgram
 		});
 		builder.Services.AddSingleton<ILLMStatusProvider>(serviceProvider =>
 			(ILLMStatusProvider)serviceProvider.GetRequiredService<ILLMService>());
+
+		// Infrastructure
+		builder.Services.AddSingleton<IGitService, GitService>();
+		builder.Services.AddSingleton<IFileSystemService, FileSystemService>();
+
+		// Agents
+		builder.Services.AddSingleton<PlannerAgent>();
+		builder.Services.AddSingleton<CoderAgent>();
+
+		// Services
 		builder.Services.AddSingleton<IAgentService, AgentManager>();
 		builder.Services.AddSingleton<OrchestratorService>();
 		builder.Services.AddSingleton<WorkspaceDashboardService>();
