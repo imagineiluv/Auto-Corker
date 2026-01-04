@@ -5,6 +5,7 @@ public class AppSettings
     // Model Settings
     public string ModelPath { get; set; } = "models/lfm2.gguf";
     public int ContextWindow { get; set; } = 4096;
+    public string AIBackend { get; set; } = "Cpu"; // "Cpu" or "Cuda"
 
     // Project Settings
     public string RepoPath { get; set; } = string.Empty;

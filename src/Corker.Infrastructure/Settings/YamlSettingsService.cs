@@ -40,7 +40,7 @@ public class YamlSettingsService : ISettingsService
 
         try
         {
-            var yaml = await System.IO.File.ReadAllTextAsync(_settingsPath);
+            var yaml = await System.IO.File.ReadAllTextAsync(_settingsPath).ConfigureAwait(false);
             return _deserializer.Deserialize<AppSettings>(yaml) ?? new AppSettings();
         }
         catch (Exception ex)
@@ -55,7 +55,7 @@ public class YamlSettingsService : ISettingsService
         try
         {
             var yaml = _serializer.Serialize(settings);
-            await System.IO.File.WriteAllTextAsync(_settingsPath, yaml);
+            await System.IO.File.WriteAllTextAsync(_settingsPath, yaml).ConfigureAwait(false);
             _logger.LogInformation("Settings saved to {Path}", _settingsPath);
         }
         catch (Exception ex)

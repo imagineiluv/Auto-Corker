@@ -17,11 +17,14 @@ public partial class App : Application
 
 	protected override async void OnStart()
 	{
+		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "App.OnStart called\n"); } catch { }
 		base.OnStart();
 
 		try
 		{
+			try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Resolving ModelProvisioningService\n"); } catch { }
 			var provisioning = _serviceProvider.GetRequiredService<ModelProvisioningService>();
+			try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Resolving ILLMService\n"); } catch { }
 			var llmService = _serviceProvider.GetRequiredService<ILLMService>();
 
 			if (llmService is Lfm2TextCompletionService lfmService)
