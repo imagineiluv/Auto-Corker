@@ -1,4 +1,5 @@
 ﻿@page "/agent-terminals"
+@implements IDisposable
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
@@ -85,8 +86,11 @@
 
     private void HandleLog(object? sender, string message)
     {
-        _liveLogs.Add(message);
-        InvokeAsync(StateHasChanged);
+        InvokeAsync(() =>
+        {
+            _liveLogs.Add(message);
+            StateHasChanged();
+        });
     }
 
     private async Task OpenFileExplorerAsync()

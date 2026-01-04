@@ -2,6 +2,7 @@
 using Corker.Infrastructure.AI;
 using Corker.Infrastructure.File;
 using Corker.Infrastructure.Git;
+using Corker.Infrastructure.Memory;
 using Corker.Orchestrator;
 using Corker.Orchestrator.Agents;
 using Corker.Orchestrator.Services;
@@ -54,6 +55,13 @@ public static class MauiProgram
 		// Infrastructure
 		builder.Services.AddSingleton<IGitService, GitService>();
 		builder.Services.AddSingleton<IFileSystemService, FileSystemService>();
+
+		// Memory
+		var modelPath = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH")
+				?? Path.Combine(AppContext.BaseDirectory, "models", "lfm2.gguf");
+		var memoryStoragePath = Path.Combine(AppContext.BaseDirectory, "memory_store");
+		builder.Services.AddCorkerMemory(modelPath, memoryStoragePath);
+		builder.Services.AddSingleton<MemoryService>();
 
 		// Agents
 		builder.Services.AddSingleton<PlannerAgent>();
