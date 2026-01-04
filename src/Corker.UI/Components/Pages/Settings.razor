@@ -1,8 +1,10 @@
-﻿@page "/settings"
+@page "/settings"
 @using System.Linq
 @using Corker.Orchestrator.Models
+@using Corker.Core.Settings
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 @inject Corker.Core.Interfaces.ISettingsService SettingsService
+@inject Corker.Core.Interfaces.ILLMStatusProvider LlmStatusProvider
 @inject NavigationManager NavigationManager
 
 <section class="page-header">
@@ -67,14 +69,14 @@
                     <div class="settings-row">
                         <label>Theme</label>
                         <div class="settings-value">
-                            <span class="pill">@_themeLabel</span>
+                            <span class="pill">@_appSettings.Theme</span>
                             <button class="ghost-button" type="button" @onclick="ToggleTheme">Toggle</button>
                         </div>
                     </div>
                     <div class="settings-row">
                         <label>Auto Updates</label>
                         <div class="settings-value">
-                            <span class="pill @_autoUpdatesClass">@_autoUpdatesLabel</span>
+                            <span class="pill @(_appSettings.AutoUpdates ? "green" : "muted")">@(_appSettings.AutoUpdates ? "Enabled" : "Paused")</span>
                             <button class="ghost-button" type="button" @onclick="ToggleAutoUpdates">Manage</button>
                         </div>
                     </div>
@@ -173,14 +175,14 @@
                     <div class="settings-row">
                         <label>Review Alerts</label>
                         <div class="settings-value">
-                            <span class="pill @_reviewAlertsClass">@_reviewAlertsLabel</span>
+                            <span class="pill @(_appSettings.ReviewAlerts ? "green" : "")">@(_appSettings.ReviewAlerts ? "Enabled" : "Muted")</span>
                             <button class="ghost-button" type="button" @onclick="ToggleReviewAlerts">Configure</button>
                         </div>
                     </div>
                     <div class="settings-row">
                         <label>Failure Alerts</label>
                         <div class="settings-value">
-                            <span class="pill @_failureAlertsClass">@_failureAlertsLabel</span>
+                            <span class="pill @(_appSettings.FailureAlerts ? "green" : "")">@(_appSettings.FailureAlerts ? "Enabled" : "Muted")</span>
                             <button class="ghost-button" type="button" @onclick="ToggleFailureAlerts">Enable</button>
                         </div>
                     </div>
@@ -193,42 +195,65 @@
 @code {
     private string _activeTab = "app";
     private IReadOnlyList<SettingsSection> _sections = Array.Empty<SettingsSection>();
+    private AppSettings _appSettings = new();
+
     private string _localLlmLabel = "Local LLM";
     private string _localLlmStatus = "muted";
     private string _saveLabel = "Save";
     private string _resetLabel = "Reset";
-    private string _themeLabel = "Dark";
-    private string _autoUpdatesLabel = "Enabled";
-    private string _autoUpdatesClass = "green";
+
+    // These specific GitHub/GitLab statuses might still need real service backing later,
+    // but for now we keep them as local state or mock since AppSettings doesn't strictly hold them yet.
     private string _gitHubStatusLabel = "Connected";
     private string _gitHubStatusClass = "green";
     private string _gitLabStatusLabel = "Not connected";
     private string _gitLabStatusClass = string.Empty;
-    private string _reviewAlertsLabel = "Enabled";
-    private string _reviewAlertsClass = "green";
-    private string _failureAlertsLabel = "Muted";
-    private string _failureAlertsClass = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        // Load real settings from YAML
-        var appSettings = await SettingsService.LoadAsync();
+        await LoadSettingsAsync();
 
-        // Map to UI Model (could be improved by binding directly, but sticking to existing UI structure for now)
-        // Ideally we update DashboardService to use SettingsService too, but here we override UI state.
-        // For simplicity, I will modify the internal logic to use AppSettings
-
-        _themeLabel = appSettings.Theme;
-        _autoUpdatesLabel = appSettings.AutoUpdates ? "Enabled" : "Paused";
-        _autoUpdatesClass = appSettings.AutoUpdates ? "green" : "muted";
-
-        // Refresh base
-        _sections = await DashboardService.GetSettingsAsync();
-
+        // Refresh base status from DashboardService (e.g. LLM status which is runtime, not config)
         var status = await DashboardService.GetLocalLlmStatusAsync();
         _localLlmLabel = status.IsAvailable ? "Local LLM Ready" : "Local LLM Missing";
         _localLlmStatus = status.IsAvailable ? "green" : "warning";
+
         ApplyQueryTab();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        _appSettings = await SettingsService.LoadAsync();
+        RefreshSections();
+    }
+
+    private void RefreshSections()
+    {
+        // Rebuild the sections based on current _appSettings
+        // This ensures the UI reflects the real model state
+
+        var localLlmLabel = LlmStatusProvider.IsAvailable ? "Local LLM (Ready)" : "Local LLM (Missing)";
+        var statusClass = LlmStatusProvider.IsAvailable ? "green" : "warning";
+
+        _sections = new List<SettingsSection>
+        {
+            new("Model", new List<SettingsItem>
+            {
+                new("Provider", localLlmLabel, statusClass, "Details"),
+                new("Model Path", _appSettings.ModelPath, "muted", "Browse"),
+                new("Context Window", _appSettings.ContextWindow.ToString(), "muted", "Adjust")
+            }),
+            new("Project", new List<SettingsItem>
+            {
+                new("Repository Path", string.IsNullOrEmpty(_appSettings.RepoPath) ? "/repos/corker" : _appSettings.RepoPath, "muted", "Browse"),
+                new("Auto Sync", _appSettings.AutoSync ? "Enabled" : "Paused", _appSettings.AutoSync ? "green" : "muted", "Configure")
+            }),
+            new("Agents", new List<SettingsItem>
+            {
+                new("Validation Mode", _appSettings.Sandboxed ? "Sandboxed" : "Permissive", _appSettings.Sandboxed ? "warning" : "muted", "Edit"),
+                new("Parallel Tasks", $"{_appSettings.MaxParallelTasks} max", "muted", "Adjust")
+            })
+        };
     }
 
     private void ApplyQueryTab()
@@ -274,131 +299,99 @@
 
     private async Task ResetAsync()
     {
-        _sections = await DashboardService.GetSettingsAsync();
+        await LoadSettingsAsync();
         _saveLabel = "Save";
         _resetLabel = "Reset";
-        _themeLabel = "Dark";
-        _autoUpdatesLabel = "Enabled";
-        _autoUpdatesClass = "green";
-        _gitHubStatusLabel = "Connected";
-        _gitHubStatusClass = "green";
-        _gitLabStatusLabel = "Not connected";
-        _gitLabStatusClass = string.Empty;
-        _reviewAlertsLabel = "Enabled";
-        _reviewAlertsClass = "green";
-        _failureAlertsLabel = "Muted";
-        _failureAlertsClass = string.Empty;
     }
 
     private async Task SaveAsync()
     {
-        var settings = await SettingsService.LoadAsync();
-
-        // Map UI state back to settings
-        settings.Theme = _themeLabel;
-        settings.AutoUpdates = _autoUpdatesLabel == "Enabled";
-
-        // In a real implementation, we would bind all fields.
-        // For this task, I am demonstrating the plumbing for Theme/AutoUpdates as proof of concept.
-
-        await SettingsService.SaveAsync(settings);
-
+        await SettingsService.SaveAsync(_appSettings);
         _saveLabel = "Saved";
         _resetLabel = "Reset";
+
+        // Reload to ensure everything is consistent
+        await LoadSettingsAsync();
     }
 
     private void HandleSettingAction(string sectionTitle, SettingsItem item)
     {
-        if (sectionTitle == "Model" && item.Label == "Provider")
+        if (sectionTitle == "Model" && item.Label == "Context Window")
         {
-            UpdateSettingItem(sectionTitle, item.Label, current => current with
-            {
-                Value = "Local LLM (Verified)",
-                ValueClass =
-            "green"
-            });
+            _appSettings.ContextWindow = _appSettings.ContextWindow == 4096 ? 8192 : 4096;
+            RefreshSections();
+            _saveLabel = "Save*";
             return;
         }
 
         if (sectionTitle == "Model" && item.Label == "Model Path")
         {
-            UpdateSettingItem(sectionTitle, item.Label, current => current with
-            {
-                Value = "/models/corker.gguf",
-                ValueClass =
-            "muted"
-            });
-            return;
-        }
-
-        if (sectionTitle == "Model" && item.Label == "Context Window")
-        {
-            var updatedValue = item.Value == "4096" ? "8192" : "4096";
-            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = updatedValue, ValueClass = "muted" });
-            return;
-        }
-
-        if (sectionTitle == "Project" && item.Label == "Repository Path")
-        {
-            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = "/repos/auto-claude", ValueClass = "muted" });
+            // Simulating a file picker or reset
+             _appSettings.ModelPath = _appSettings.ModelPath == "/models/lfm2.gguf" ? "/models/corker.gguf" : "/models/lfm2.gguf";
+            RefreshSections();
+            _saveLabel = "Save*";
             return;
         }
 
         if (sectionTitle == "Project" && item.Label == "Auto Sync")
         {
-            var enabled = item.Value == "Enabled";
-            UpdateSettingItem(sectionTitle, item.Label, current => current with
-            {
-                Value = enabled ? "Paused" : "Enabled",
-                ValueClass = enabled ? "muted" : "green"
-            });
+            _appSettings.AutoSync = !_appSettings.AutoSync;
+            RefreshSections();
+            _saveLabel = "Save*";
+            return;
+        }
+
+        if (sectionTitle == "Project" && item.Label == "Repository Path")
+        {
+            // Simulate changing path
+            _appSettings.RepoPath = "/home/user/new-repo";
+            RefreshSections();
+            _saveLabel = "Save*";
             return;
         }
 
         if (sectionTitle == "Agents" && item.Label == "Validation Mode")
         {
-            var sandboxed = item.Value == "Sandboxed";
-            UpdateSettingItem(sectionTitle, item.Label, current => current with
-            {
-                Value = sandboxed ? "Permissive" : "Sandboxed",
-                ValueClass = sandboxed ? "muted" : "warning"
-            });
+            _appSettings.Sandboxed = !_appSettings.Sandboxed;
+            RefreshSections();
+            _saveLabel = "Save*";
             return;
         }
 
         if (sectionTitle == "Agents" && item.Label == "Parallel Tasks")
         {
-            var updatedValue = item.Value.Contains("3") ? "4 max" : "3 max";
-            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = updatedValue, ValueClass = "muted" });
+            _appSettings.MaxParallelTasks = _appSettings.MaxParallelTasks >= 4 ? 1 : _appSettings.MaxParallelTasks + 1;
+            RefreshSections();
+            _saveLabel = "Save*";
+            return;
         }
-    }
-
-    private void UpdateSettingItem(string sectionTitle, string itemLabel, Func<SettingsItem, SettingsItem> update)
-    {
-        _sections = _sections.Select(section =>
-        {
-            if (section.Title != sectionTitle)
-            {
-                return section;
-            }
-
-            var updatedItems = section.Items.Select(item => item.Label == itemLabel ? update(item) : item).ToList();
-            return section with { Items = updatedItems };
-        }).ToList();
     }
 
     private void ToggleTheme()
     {
-        _themeLabel = _themeLabel == "Dark" ? "Light" : "Dark";
+        _appSettings.Theme = _appSettings.Theme == "Dark" ? "Light" : "Dark";
+        _saveLabel = "Save*";
     }
 
     private void ToggleAutoUpdates()
     {
-        var enabled = _autoUpdatesLabel == "Enabled";
-        _autoUpdatesLabel = enabled ? "Paused" : "Enabled";
-        _autoUpdatesClass = enabled ? "muted" : "green";
+        _appSettings.AutoUpdates = !_appSettings.AutoUpdates;
+        _saveLabel = "Save*";
     }
 
+    private void ToggleReviewAlerts()
+    {
+        _appSettings.ReviewAlerts = !_appSettings.ReviewAlerts;
+        _saveLabel = "Save*";
+    }
+
+    private void ToggleFailureAlerts()
+    {
+        _appSettings.FailureAlerts = !_appSettings.FailureAlerts;
+        _saveLabel = "Save*";
+    }
+
+    // Mock toggles for GitHub/GitLab until those are in AppSettings or a separate service
     private void ToggleGitHubConnection()
     {
         var connected = _gitHubStatusLabel == "Connected";
@@ -411,19 +404,5 @@
         var connected = _gitLabStatusLabel == "Connected";
         _gitLabStatusLabel = connected ? "Not connected" : "Connected";
         _gitLabStatusClass = connected ? string.Empty : "green";
-    }
-
-    private void ToggleReviewAlerts()
-    {
-        var enabled = _reviewAlertsLabel == "Enabled";
-        _reviewAlertsLabel = enabled ? "Muted" : "Enabled";
-        _reviewAlertsClass = enabled ? string.Empty : "green";
-    }
-
-    private void ToggleFailureAlerts()
-    {
-        var muted = _failureAlertsLabel == "Muted";
-        _failureAlertsLabel = muted ? "Enabled" : "Muted";
-        _failureAlertsClass = muted ? "green" : string.Empty;
     }
 }

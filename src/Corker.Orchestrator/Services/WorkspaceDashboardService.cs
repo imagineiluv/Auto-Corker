@@ -11,6 +11,7 @@ public class WorkspaceDashboardService
     private readonly IAgentService _agentService;
     private readonly ILLMService _llmService;
     private readonly ILLMStatusProvider _llmStatusProvider;
+    private readonly ISettingsService _settingsService;
     private readonly ILogger<WorkspaceDashboardService> _logger;
     private readonly List<IdeaCard> _ideas = new();
     private readonly List<IssueItem> _issues = new();
@@ -41,11 +42,13 @@ public class WorkspaceDashboardService
         IAgentService agentService,
         ILLMService llmService,
         ILLMStatusProvider llmStatusProvider,
+        ISettingsService settingsService,
         ILogger<WorkspaceDashboardService> logger)
     {
         _agentService = agentService;
         _llmService = llmService;
         _llmStatusProvider = llmStatusProvider;
+        _settingsService = settingsService;
         _logger = logger;
     }
 
@@ -350,6 +353,17 @@ public class WorkspaceDashboardService
     public async Task<IReadOnlyList<AgentToolItem>> RunAgentToolAsync(string toolName)
     {
         await EnsureSeededAsync();
+
+        if (toolName == "Repo Indexer" || toolName == "Task Validator")
+        {
+            // Create a real task for these tools
+            var description = toolName == "Repo Indexer"
+                ? "Run the repository indexer to update embeddings."
+                : "Run validation suite on pending tasks.";
+
+            await _agentService.CreateTaskAsync($"Run {toolName}", description);
+        }
+
         UpdateAgentToolList(toolName, tool => tool.ActionLabel switch
         {
             "Run" => tool with { Status = "Running", StatusClass = "green", ActionLabel = "View" },
@@ -625,6 +639,7 @@ public class WorkspaceDashboardService
     public async Task<IReadOnlyList<SettingsSection>> GetSettingsAsync()
     {
         await EnsureSeededAsync();
+        var settings = await _settingsService.LoadAsync();
         var localLlmLabel = _llmStatusProvider.IsAvailable ? "Local LLM (Ready)" : "Local LLM (Missing)";
         var statusClass = _llmStatusProvider.IsAvailable ? "green" : "warning";
 
@@ -633,18 +648,18 @@ public class WorkspaceDashboardService
             new("Model", new List<SettingsItem>
             {
                 new("Provider", localLlmLabel, statusClass, "Details"),
-                new("Model Path", _llmStatusProvider.ModelPath, "muted", "Browse"),
-                new("Context Window", "4096", "muted", "Adjust")
+                new("Model Path", settings.ModelPath, "muted", "Browse"),
+                new("Context Window", settings.ContextWindow.ToString(), "muted", "Adjust")
             }),
             new("Project", new List<SettingsItem>
             {
-                new("Repository Path", "/repos/corker", "muted", "Browse"),
-                new("Auto Sync", "Enabled", "green", "Configure")
+                new("Repository Path", string.IsNullOrEmpty(settings.RepoPath) ? "/repos/corker" : settings.RepoPath, "muted", "Browse"),
+                new("Auto Sync", settings.AutoSync ? "Enabled" : "Paused", settings.AutoSync ? "green" : "muted", "Configure")
             }),
             new("Agents", new List<SettingsItem>
             {
-                new("Validation Mode", "Sandboxed", "warning", "Edit"),
-                new("Parallel Tasks", "3 max", "muted", "Adjust")
+                new("Validation Mode", settings.Sandboxed ? "Sandboxed" : "Permissive", settings.Sandboxed ? "warning" : "muted", "Edit"),
+                new("Parallel Tasks", $"{settings.MaxParallelTasks} max", "muted", "Adjust")
             })
         };
 
