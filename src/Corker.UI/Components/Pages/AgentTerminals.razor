@@ -71,7 +71,8 @@
     protected override async Task OnInitializedAsync()
     {
         _terminals = await DashboardService.GetTerminalsAsync();
-        _liveLogs = AgentService.GetLogs().ToList();
+        var logs = await AgentService.GetLogsAsync();
+        _liveLogs = logs.ToList();
 
         AgentService.OnLogReceived += HandleLog;
     }

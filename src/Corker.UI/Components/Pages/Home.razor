@@ -22,7 +22,9 @@
 <section class="kanban-board">
     @foreach (var column in _columns)
     {
-        <div class="kanban-column @GetColumnClass(column.Key)" @ondrop="() => OnDrop(column.Key)" @ondragover:preventDefault>
+        <div class="kanban-column @GetColumnClass(column.Key)"
+             @ondragover:preventDefault
+             @ondrop="() => OnDrop(column.Key)">
             <header class="kanban-column-header">
                 <div class="column-title">
                     <h2>@column.Title</h2>
@@ -48,7 +50,7 @@
             {
                 @foreach (var task in column.Tasks)
                 {
-                    <article class="task-card" draggable="true" @ondragstart="() => OnDragStart(task)" @ondrop="() => OnDrop(column.Key)" @ondragover:preventDefault>
+                    <article class="task-card" draggable="true" @ondragstart="() => OnDragStart(task)">
                         <div class="task-header">
                             <div class="task-title">@task.Title</div>
                             <span class="pill @task.StatusClass">@task.StatusLabel</span>
@@ -145,6 +147,20 @@
         gap: 1rem;
         margin-top: 1rem;
     }
+
+    /* Drag & Drop Styles */
+    .task-card[draggable="true"] {
+        cursor: grab;
+    }
+    .task-card[draggable="true"]:active {
+        cursor: grabbing;
+    }
+    .kanban-column {
+        transition: background-color 0.2s;
+    }
+    .kanban-column:hover {
+        background-color: rgba(255, 255, 255, 0.02);
+    }
 </style>
 
 @code {
@@ -153,6 +169,7 @@
     private bool _showCreateModal;
     private string _newTaskTitle = string.Empty;
     private string _newTaskDescription = string.Empty;
+    private TaskCard? _draggedTask;
 
     protected override async Task OnInitializedAsync()
     {
@@ -185,27 +202,21 @@
         await ReloadAsync();
     }
 
-    // Kept for compatibility if invoked elsewhere
-    private async Task CreateTaskAsync()
-    {
-        OpenCreateTaskModal();
-    }
-
-    private TaskCard? _draggedTask;
-
+    // Drag & Drop Handlers
     private void OnDragStart(TaskCard task)
     {
         _draggedTask = task;
     }
 
-    private async Task OnDrop(string newColumnKey)
+    private async Task OnDrop(string columnKey)
     {
         if (_draggedTask == null) return;
 
-        var newStatus = newColumnKey switch
+        var newStatus = columnKey switch
         {
             "backlog" => Corker.Core.Entities.TaskStatus.Pending,
             "in-progress" => Corker.Core.Entities.TaskStatus.InProgress,
+            "ai-review" => Corker.Core.Entities.TaskStatus.Review,
             "human-review" => Corker.Core.Entities.TaskStatus.Review,
             "done" => Corker.Core.Entities.TaskStatus.Done,
             _ => Corker.Core.Entities.TaskStatus.Pending

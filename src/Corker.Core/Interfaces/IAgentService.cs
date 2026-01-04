@@ -11,5 +11,5 @@ public interface IAgentService
 
     // Log streaming
     event EventHandler<string> OnLogReceived;
-    IReadOnlyList<string> GetLogs();
+    Task<IReadOnlyList<string>> GetLogsAsync();
 }

@@ -76,15 +76,9 @@ public class AgentManager : IAgentService
         return await _repository.GetAllAsync();
     }
 
-    public IReadOnlyList<string> GetLogs()
+    public async Task<IReadOnlyList<string>> GetLogsAsync()
     {
-        // For simplicity, we sync-wait here or change interface to async.
-        // The interface uses IReadOnlyList<string> directly, so we block.
-        // Ideally IAgentService.GetLogs should be GetLogsAsync.
-        // But for parity with existing code, let's just .Result (bad practice but quick fix)
-        // OR better: cache recent logs in memory for UI.
-        // Let's rely on Repository completely.
-        return _repository.GetLogsAsync().Result;
+        return await _repository.GetLogsAsync();
     }
 
     private void AddLog(string message)
