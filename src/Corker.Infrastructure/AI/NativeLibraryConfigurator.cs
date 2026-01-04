@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using IO = System.IO;
@@ -17,8 +18,9 @@ public static class NativeLibraryConfigurator
         // Default to cpu if empty
         if (string.IsNullOrEmpty(backend)) backend = "cpu";
 
-        string runtimePath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", backend.ToLower(), "llama.dll");
-        string ggmlPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", backend.ToLower(), "ggml.dll");
+        string runtimeRoot = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "runtimes", backend.ToLower());
+        string? runtimePath = FindLibraryPath(runtimeRoot, "llama");
+        string? ggmlPath = FindLibraryPath(runtimeRoot, "ggml");
 
         try
         {
@@ -26,9 +28,9 @@ public static class NativeLibraryConfigurator
         }
         catch { }
 
-        logger.LogInformation("Attempting to load native library from {Path}", runtimePath);
+        logger.LogInformation("Attempting to load native library from {Path}", runtimePath ?? "(not found)");
 
-        if (IO.File.Exists(ggmlPath))
+        if (!string.IsNullOrWhiteSpace(ggmlPath) && IO.File.Exists(ggmlPath))
         {
             try
             {
@@ -46,7 +48,7 @@ public static class NativeLibraryConfigurator
             }
         }
 
-        if (IO.File.Exists(runtimePath))
+        if (!string.IsNullOrWhiteSpace(runtimePath) && IO.File.Exists(runtimePath))
         {
             try
             {
@@ -76,12 +78,45 @@ public static class NativeLibraryConfigurator
         }
         else
         {
-            logger.LogWarning("Native library not found at {Path}. LLamaSharp might fail to initialize if not found elsewhere.", runtimePath);
+            logger.LogWarning("Native library not found at {Path}. LLamaSharp might fail to initialize if not found elsewhere.", runtimePath ?? "(not found)");
             try
             {
-                IO.File.AppendAllText(IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "debug_log.txt"), $"File not found: {runtimePath}\n");
+                IO.File.AppendAllText(IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "debug_log.txt"), $"File not found: {runtimePath ?? "(not found)"}\n");
             }
             catch { }
         }
+    }
+
+    private static string? FindLibraryPath(string runtimeRoot, string baseName)
+    {
+        foreach (string fileName in GetCandidateFileNames(baseName))
+        {
+            string candidate = IO.Path.Combine(runtimeRoot, fileName);
+            if (IO.File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> GetCandidateFileNames(string baseName)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            yield return $"{baseName}.dll";
+            yield break;
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            yield return $"lib{baseName}.dylib";
+            yield return $"{baseName}.dylib";
+            yield break;
+        }
+
+        yield return $"lib{baseName}.so";
+        yield return $"{baseName}.so";
     }
 }
