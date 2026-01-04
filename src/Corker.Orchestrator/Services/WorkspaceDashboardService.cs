@@ -681,17 +681,22 @@ public class WorkspaceDashboardService
 
         _seeded = true;
 
-        var taskOne = await _agentService.CreateTaskAsync("Add Electron debugging server", "Expand validation layers and expose dev tooling hooks.");
-        await _agentService.UpdateTaskStatusAsync(taskOne.Id, TaskStatus.Pending);
+        // This ensures the initial tasks are actually created in the backend AgentManager,
+        // so that state is consistent between Dashboard and Backend.
+        if ((await _agentService.GetTasksAsync()).Count == 0)
+        {
+             var taskOne = await _agentService.CreateTaskAsync("Add Electron debugging server", "Expand validation layers and expose dev tooling hooks.");
+            await _agentService.UpdateTaskStatusAsync(taskOne.Id, TaskStatus.Pending);
 
-        var taskTwo = await _agentService.CreateTaskAsync("Roadmap generation flow", "Streaming roadmap tasks into review queue.");
-        await _agentService.UpdateTaskStatusAsync(taskTwo.Id, TaskStatus.InProgress);
+            var taskTwo = await _agentService.CreateTaskAsync("Roadmap generation flow", "Streaming roadmap tasks into review queue.");
+            await _agentService.UpdateTaskStatusAsync(taskTwo.Id, TaskStatus.InProgress);
 
-        var taskThree = await _agentService.CreateTaskAsync("Go-to-task shortcut", "After converting an idea to a task, show a Go to Task button.");
-        await _agentService.UpdateTaskStatusAsync(taskThree.Id, TaskStatus.Review);
+            var taskThree = await _agentService.CreateTaskAsync("Go-to-task shortcut", "After converting an idea to a task, show a Go to Task button.");
+            await _agentService.UpdateTaskStatusAsync(taskThree.Id, TaskStatus.Review);
 
-        var taskFour = await _agentService.CreateTaskAsync("Implement virtualization", "FileTree component renders all files in expanded directories.");
-        await _agentService.UpdateTaskStatusAsync(taskFour.Id, TaskStatus.Done);
+            var taskFour = await _agentService.CreateTaskAsync("Implement virtualization", "FileTree component renders all files in expanded directories.");
+            await _agentService.UpdateTaskStatusAsync(taskFour.Id, TaskStatus.Done);
+        }
 
         _ideas.AddRange(new List<IdeaCard>
         {
