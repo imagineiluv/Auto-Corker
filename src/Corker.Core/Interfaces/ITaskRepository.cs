@@ -12,4 +12,9 @@ public interface ITaskRepository
     // Logs (Persist logs associated with tasks or global)
     Task AddLogAsync(string message);
     Task<IReadOnlyList<string>> GetLogsAsync(int limit = 1000);
+
+    // Ideas
+    Task<Idea> CreateIdeaAsync(Idea idea);
+    Task UpdateIdeaAsync(Idea idea);
+    Task<IReadOnlyList<Idea>> GetIdeasAsync();
 }

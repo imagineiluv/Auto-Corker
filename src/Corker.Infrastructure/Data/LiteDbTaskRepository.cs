@@ -11,6 +11,7 @@ public class LiteDbTaskRepository : ITaskRepository, IDisposable
     private readonly ILogger<LiteDbTaskRepository> _logger;
     private readonly ILiteCollection<AgentTask> _tasks;
     private readonly ILiteCollection<LogEntry> _logs;
+    private readonly ILiteCollection<Idea> _ideas;
 
     public LiteDbTaskRepository(string connectionString, ILogger<LiteDbTaskRepository> logger)
     {
@@ -27,6 +28,7 @@ public class LiteDbTaskRepository : ITaskRepository, IDisposable
         _db = new LiteDatabase(connectionString);
         _tasks = _db.GetCollection<AgentTask>("tasks");
         _logs = _db.GetCollection<LogEntry>("logs");
+        _ideas = _db.GetCollection<Idea>("ideas");
     }
 
     public Task<AgentTask> CreateAsync(AgentTask task)
@@ -69,6 +71,23 @@ public class LiteDbTaskRepository : ITaskRepository, IDisposable
             .ToList();
 
         return Task.FromResult<IReadOnlyList<string>>(logs);
+    }
+
+    public Task<Idea> CreateIdeaAsync(Idea idea)
+    {
+        _ideas.Insert(idea);
+        return Task.FromResult(idea);
+    }
+
+    public Task UpdateIdeaAsync(Idea idea)
+    {
+        _ideas.Update(idea);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<Idea>> GetIdeasAsync()
+    {
+        return Task.FromResult<IReadOnlyList<Idea>>(_ideas.FindAll().ToList());
     }
 
     public void Dispose()
