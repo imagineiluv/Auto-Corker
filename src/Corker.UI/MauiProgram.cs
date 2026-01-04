@@ -60,6 +60,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IFileSystemService, FileSystemService>();
 		builder.Services.AddSingleton<IProcessService, ProcessSandboxService>();
 		builder.Services.AddSingleton<ISettingsService, YamlSettingsService>();
+		builder.Services.AddSingleton<ModelProvisioningService>();
 
 		// Persistence
 		var dbPath = Path.Combine(AppContext.BaseDirectory, "corker.db");
