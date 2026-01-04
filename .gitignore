@@ -73,3 +73,4 @@ __pycache__/
 # Models (GGUF are large binary files)
 models/
 *.gguf
+packages/ 

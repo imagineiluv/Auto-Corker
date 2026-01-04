@@ -1,7 +1,6 @@
 ﻿@page "/settings"
 @using System.Linq
 @using Corker.Orchestrator.Models
-@using Microsoft.AspNetCore.WebUtilities
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 @inject Corker.Core.Interfaces.ISettingsService SettingsService
 @inject NavigationManager NavigationManager
@@ -21,8 +20,10 @@
 <section class="tab-shell">
     <div class="tab-list">
         <button class="tab-pill @(IsActive("app"))" type="button" @onclick="@(() => SetActiveTab("app"))">App</button>
-        <button class="tab-pill @(IsActive("project"))" type="button" @onclick="@(() => SetActiveTab("project"))">Project</button>
-        <button class="tab-pill @(IsActive("agents"))" type="button" @onclick="@(() => SetActiveTab("agents"))">Agents</button>
+        <button class="tab-pill @(IsActive("project"))" type="button"
+            @onclick="@(() => SetActiveTab("project"))">Project</button>
+        <button class="tab-pill @(IsActive("agents"))" type="button"
+            @onclick="@(() => SetActiveTab("agents"))">Agents</button>
     </div>
 </section>
 
@@ -233,15 +234,32 @@
     private void ApplyQueryTab()
     {
         var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
-        var query = QueryHelpers.ParseQuery(uri.Query);
+        var query = ParseQuery(uri.Query);
         if (query.TryGetValue("tab", out var tabValue))
         {
-            var requested = tabValue.ToString();
+            var requested = tabValue;
             if (requested is "app" or "project" or "agents")
             {
                 _activeTab = requested;
             }
         }
+    }
+
+    private Dictionary<string, string> ParseQuery(string queryString)
+    {
+        var query = new Dictionary<string, string>();
+        if (string.IsNullOrEmpty(queryString) || !queryString.StartsWith("?"))
+            return query;
+        var pairs = queryString.Substring(1).Split('&');
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split('=');
+            if (parts.Length == 2)
+            {
+                query[Uri.UnescapeDataString(parts[0])] = Uri.UnescapeDataString(parts[1]);
+            }
+        }
+        return query;
     }
 
     private void SetActiveTab(string tab)
@@ -293,13 +311,23 @@
     {
         if (sectionTitle == "Model" && item.Label == "Provider")
         {
-            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = "Local LLM (Verified)", ValueClass = "green" });
+            UpdateSettingItem(sectionTitle, item.Label, current => current with
+            {
+                Value = "Local LLM (Verified)",
+                ValueClass =
+            "green"
+            });
             return;
         }
 
         if (sectionTitle == "Model" && item.Label == "Model Path")
         {
-            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = "/models/corker.gguf", ValueClass = "muted" });
+            UpdateSettingItem(sectionTitle, item.Label, current => current with
+            {
+                Value = "/models/corker.gguf",
+                ValueClass =
+            "muted"
+            });
             return;
         }
 

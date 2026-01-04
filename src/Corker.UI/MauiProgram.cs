@@ -61,17 +61,16 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IProcessService, ProcessSandboxService>();
 		builder.Services.AddSingleton<ISettingsService, YamlSettingsService>();
 
-        // Persistence
-        var dbPath = Path.Combine(AppContext.BaseDirectory, "corker.db");
-        builder.Services.AddSingleton<ITaskRepository>(sp =>
-            new LiteDbTaskRepository(dbPath, sp.GetRequiredService<ILogger<LiteDbTaskRepository>>()));
+		// Persistence
+		var dbPath = Path.Combine(AppContext.BaseDirectory, "corker.db");
+		builder.Services.AddSingleton<ITaskRepository>(sp =>
+			new LiteDbTaskRepository(dbPath, sp.GetRequiredService<ILogger<LiteDbTaskRepository>>()));
 
 		// Memory
 		var modelPath = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH")
 				?? Path.Combine(AppContext.BaseDirectory, "models", "lfm2.gguf");
 		var memoryStoragePath = Path.Combine(AppContext.BaseDirectory, "memory_store");
 		builder.Services.AddCorkerMemory(modelPath, memoryStoragePath);
-		builder.Services.AddSingleton<MemoryService>();
 
 		// Agents
 		builder.Services.AddSingleton<PlannerAgent>();

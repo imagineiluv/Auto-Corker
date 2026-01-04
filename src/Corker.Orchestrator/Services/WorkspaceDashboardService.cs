@@ -680,12 +680,14 @@ public class WorkspaceDashboardService
         }
 
         _seeded = true;
+        await Task.Yield(); // Ensure UI responsiveness during seeding
 
         var taskOne = await _agentService.CreateTaskAsync("Add Electron debugging server", "Expand validation layers and expose dev tooling hooks.");
         await _agentService.UpdateTaskStatusAsync(taskOne.Id, TaskStatus.Pending);
 
         var taskTwo = await _agentService.CreateTaskAsync("Roadmap generation flow", "Streaming roadmap tasks into review queue.");
-        await _agentService.UpdateTaskStatusAsync(taskTwo.Id, TaskStatus.InProgress);
+        // Changed to Pending to avoid triggering the agent loop during seeding, which might freeze the UI on startup
+        await _agentService.UpdateTaskStatusAsync(taskTwo.Id, TaskStatus.Pending);
 
         var taskThree = await _agentService.CreateTaskAsync("Go-to-task shortcut", "After converting an idea to a task, show a Go to Task button.");
         await _agentService.UpdateTaskStatusAsync(taskThree.Id, TaskStatus.Review);

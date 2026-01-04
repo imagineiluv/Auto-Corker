@@ -2,6 +2,8 @@ using Corker.Core.Interfaces;
 using LLama;
 using LLama.Common;
 using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Corker.Infrastructure.AI;
 
@@ -27,6 +29,8 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
     public bool IsAvailable => System.IO.File.Exists(_modelPath);
 
     public bool IsInitialized => _executor != null;
+
+    public int MaxTokenTotal => 4096; // LFM2 standard
 
     public void Initialize()
     {
@@ -56,17 +60,20 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
 
     public async Task<string> GenerateTextAsync(string prompt)
     {
+        return await GenerateTextAsync(prompt, CancellationToken.None);
+    }
+
+    public async Task<string> GenerateTextAsync(string prompt, CancellationToken cancellationToken = default)
+    {
         if (_executor == null)
         {
-             return "AI Model not loaded.";
+            return "AI Model not loaded.";
         }
 
         var inferenceParams = new InferenceParams() { MaxTokens = 256 };
-        // Use SamplingPipeline if strict adherence to new API is required, but suppressing warning or using default constructor for simple use case is often enough for starters.
-        // However, LLamaSharp 0.16+ moves sampling config to SamplingPipeline.
 
         var text = "";
-        await foreach(var token in _executor.InferAsync(prompt, inferenceParams))
+        await foreach (var token in _executor.InferAsync(prompt, inferenceParams, cancellationToken))
         {
             text += token;
         }

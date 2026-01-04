@@ -1,12 +1,10 @@
 using LLama;
 using LLama.Common;
-using Microsoft.KernelMemory;
-using Microsoft.KernelMemory.AI;
 using Microsoft.Extensions.Logging;
 
 namespace Corker.Infrastructure.AI;
 
-public class Lfm2EmbeddingGenerator : ITextEmbeddingGenerator, IDisposable
+public class Lfm2EmbeddingGenerator : IDisposable
 {
     private readonly string _modelPath;
     private readonly ILogger<Lfm2EmbeddingGenerator> _logger;
@@ -23,24 +21,16 @@ public class Lfm2EmbeddingGenerator : ITextEmbeddingGenerator, IDisposable
 
     public int CountTokens(string text)
     {
-        // Simple approximation or use tokenizer if available.
-        // For accurate count we need the tokenizer from weights.
-        // If weights aren't loaded yet, we estimate.
+        // Simple approximation
         return text.Length / 4;
     }
 
     public IReadOnlyList<string> GetTokens(string text)
     {
-        // Kernel Memory requires ITextTokenizer.
-        // For now, we return a simple whitespace split to satisfy the interface,
-        // as accurate tokenization requires loading the model context which might be heavy just for this call
-        // if used frequently outside of embedding generation.
-        // Ideally: _context.Tokenize(text)
-
         return text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
     }
 
-    public async Task<Embedding> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
+    public async Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
         EnsureInitialized();
 
@@ -48,8 +38,8 @@ public class Lfm2EmbeddingGenerator : ITextEmbeddingGenerator, IDisposable
 
         var embedding = await _embedder.GetEmbeddings(text, cancellationToken);
         // LLamaSharp returns IReadOnlyList<float[]> (batch), we want the first one
-        if (embedding.Count == 0) return new Embedding(new float[0]);
-        return new Embedding(embedding[0]);
+        if (embedding.Count == 0) return new float[0];
+        return embedding[0];
     }
 
     private void EnsureInitialized()
@@ -61,22 +51,29 @@ public class Lfm2EmbeddingGenerator : ITextEmbeddingGenerator, IDisposable
             throw new FileNotFoundException($"Model file not found at {_modelPath}");
         }
 
-        var parameters = new ModelParams(_modelPath)
+        try
         {
-            ContextSize = 4096,
-            GpuLayerCount = 0
-            // EmbeddingMode removed as it is not available/needed in this version of LLamaSharp for ModelParams
-        };
+            var parameters = new ModelParams(_modelPath)
+            {
+                ContextSize = 4096,
+                GpuLayerCount = 0, // CPU only for now
+                Embeddings = true
+            };
 
-        _weights = LLamaWeights.LoadFromFile(parameters);
-        _embedder = new LLamaEmbedder(_weights, parameters);
-        _logger.LogInformation("Lfm2EmbeddingGenerator initialized with {ModelPath}", _modelPath);
+            _weights = LLamaWeights.LoadFromFile(parameters);
+            _embedder = new LLamaEmbedder(_weights, parameters);
+            _logger.LogInformation("LFM2 embedding model loaded from {ModelPath}", _modelPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize LFM2 embedding model");
+            throw;
+        }
     }
 
     public void Dispose()
     {
         _embedder?.Dispose();
         _weights?.Dispose();
-        GC.SuppressFinalize(this);
     }
 }
