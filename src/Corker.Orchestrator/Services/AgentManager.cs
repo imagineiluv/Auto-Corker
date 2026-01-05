@@ -11,7 +11,10 @@ public class AgentManager : IAgentService
     private readonly PlannerAgent _plannerAgent;
     private readonly CoderAgent _coderAgent;
     private readonly ITaskRepository _repository;
+    private readonly Corker.Core.Interfaces.ISettingsService _settingsService;
     private readonly ILogger<AgentManager> _logger;
+    private static SemaphoreSlim? _concurrencySemaphore;
+    private static readonly object _semaphoreLock = new();
 
     public event EventHandler<string>? OnLogReceived;
 
@@ -20,13 +23,36 @@ public class AgentManager : IAgentService
         PlannerAgent plannerAgent,
         CoderAgent coderAgent,
         ITaskRepository repository,
+        Corker.Core.Interfaces.ISettingsService settingsService,
         ILogger<AgentManager> logger)
     {
         _llmService = llmService;
         _plannerAgent = plannerAgent;
         _coderAgent = coderAgent;
         _repository = repository;
+        _settingsService = settingsService;
         _logger = logger;
+    }
+
+    private async Task EnsureSemaphoreAsync()
+    {
+        if (_concurrencySemaphore != null) return;
+
+        // Load settings outside the lock to avoid async-in-lock issues if possible,
+        // but we need to be careful. Ideally we just load settings once.
+        // For simplicity and safety in this migration context:
+
+        var settings = await _settingsService.LoadAsync();
+        var maxParallel = Math.Max(1, settings.MaxParallelTasks);
+
+        lock (_semaphoreLock)
+        {
+            if (_concurrencySemaphore == null)
+            {
+                _concurrencySemaphore = new SemaphoreSlim(maxParallel, maxParallel);
+                _logger.LogInformation("Agent concurrency limit set to {Limit}", maxParallel);
+            }
+        }
     }
 
     public async Task<AgentTask> CreateTaskAsync(string title, string description)
@@ -91,14 +117,26 @@ public class AgentManager : IAgentService
 
     private async Task RunAgentLoopAsync(AgentTask task)
     {
-        AddLog($"Starting Agent Loop for task: {task.Title}");
+        await EnsureSemaphoreAsync();
+
+        // Wait for slot
+        if (_concurrencySemaphore != null)
+        {
+            await _concurrencySemaphore.WaitAsync();
+        }
 
         try
         {
+            AddLog($"Starting Agent Loop for task: {task.Title}");
+
             // 1. Planning
             AddLog("Phase 1: Planning...");
             var plan = await _plannerAgent.CreatePlanAsync(task.Description);
             AddLog($"Plan Generated: {plan.Substring(0, Math.Min(50, plan.Length))}...");
+
+            // Persist Plan
+            task.Description += $"\n\n## Generated Plan\n{plan}";
+            await _repository.UpdateAsync(task);
 
             // 2. Coding
             AddLog("Phase 2: Coding...");
@@ -111,11 +149,19 @@ public class AgentManager : IAgentService
 
             // Update status back on the main thread context if needed, but here we just update memory
             task.Status = Core.Entities.TaskStatus.Review;
+            await _repository.UpdateAsync(task);
         }
         catch (Exception ex)
         {
             AddLog($"Error in Agent Loop: {ex.Message}");
             _logger.LogError(ex, "Error in Agent Loop for task {TaskId}", task.Id);
+
+            task.Status = Core.Entities.TaskStatus.Failed;
+            await _repository.UpdateAsync(task);
+        }
+        finally
+        {
+            _concurrencySemaphore?.Release();
         }
     }
 }

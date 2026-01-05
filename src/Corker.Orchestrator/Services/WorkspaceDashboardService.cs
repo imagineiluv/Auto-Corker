@@ -63,7 +63,7 @@ public class WorkspaceDashboardService
 
         return new List<KanbanColumn>
         {
-            new("backlog", "Backlog", cards.Where(card => card.Status == TaskStatus.Pending).ToList()),
+            new("backlog", "Backlog", cards.Where(card => card.Status == TaskStatus.Pending || card.Status == TaskStatus.Failed).ToList()),
             new("in-progress", "In Progress", cards.Where(card => card.Status == TaskStatus.InProgress).ToList()),
             new("ai-review", "AI Review", new List<TaskCard>()), // Could map to Review status if we differentiate
             new("human-review", "Human Review", cards.Where(card => card.Status == TaskStatus.Review).ToList()),
@@ -911,6 +911,7 @@ public class WorkspaceDashboardService
             TaskStatus.InProgress => "Running",
             TaskStatus.Review => "Needs Review",
             TaskStatus.Done => "Complete",
+            TaskStatus.Failed => "Failed",
             _ => "Pending"
         };
 
@@ -920,6 +921,7 @@ public class WorkspaceDashboardService
             TaskStatus.InProgress => "green",
             TaskStatus.Review => "purple",
             TaskStatus.Done => "green",
+            TaskStatus.Failed => "warning", // Red/Warning for failures
             _ => string.Empty
         };
 
