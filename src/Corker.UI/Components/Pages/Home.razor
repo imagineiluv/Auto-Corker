@@ -167,6 +167,9 @@
     private IReadOnlyList<KanbanColumn> _columns = Array.Empty<KanbanColumn>();
     private bool _showArchived;
     private TaskCard? _draggedTask;
+    private bool _showCreateModal;
+    private string _newTaskTitle = "";
+    private string _newTaskDescription = "";
 
     protected override async Task OnInitializedAsync()
     {

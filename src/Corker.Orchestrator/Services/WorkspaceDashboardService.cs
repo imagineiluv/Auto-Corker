@@ -520,13 +520,6 @@ public class WorkspaceDashboardService
         return _insightMetrics.ToList();
     }
 
-    public async Task<IReadOnlyList<InsightMetric>> ExportInsightsAsync()
-    {
-        await EnsureSeededAsync();
-        _insightMetrics.Insert(0, new InsightMetric("Last Export", "Just now", "Insights exported for reporting.", 100));
-        return _insightMetrics.ToList();
-    }
-
     public async Task<IReadOnlyList<RoadmapGroup>> GetRoadmapByPriorityAsync()
     {
         await EnsureSeededAsync();
