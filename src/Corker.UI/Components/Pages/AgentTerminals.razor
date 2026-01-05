@@ -108,4 +108,19 @@
     {
         _terminals = await DashboardService.CreateTerminalAsync();
     }
+
+    private async Task OpenFileExplorerAsync()
+    {
+        _terminals = await DashboardService.OpenFileExplorerAsync();
+    }
+
+    private async Task RestoreSessionAsync()
+    {
+        _terminals = await DashboardService.RestoreTerminalSessionAsync();
+    }
+
+    private async Task CreateTerminalAsync()
+    {
+        _terminals = await DashboardService.CreateTerminalAsync();
+    }
 }

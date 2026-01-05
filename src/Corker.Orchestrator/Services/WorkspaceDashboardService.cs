@@ -376,17 +376,6 @@ public class WorkspaceDashboardService
     public async Task<IReadOnlyList<AgentToolItem>> RunAgentToolAsync(string toolName)
     {
         await EnsureSeededAsync();
-
-        if (toolName == "Repo Indexer" || toolName == "Task Validator")
-        {
-            // Create a real task for these tools
-            var description = toolName == "Repo Indexer"
-                ? "Run the repository indexer to update embeddings."
-                : "Run validation suite on pending tasks.";
-
-            await _agentService.CreateTaskAsync($"Run {toolName}", description);
-        }
-
         UpdateAgentToolList(toolName, tool => tool.ActionLabel switch
         {
             "Run" => tool with { Status = "Running", StatusClass = "green", ActionLabel = "View" },
@@ -520,18 +509,15 @@ public class WorkspaceDashboardService
 
     public async Task<IReadOnlyList<InsightMetric>> GetInsightsAsync()
     {
-        var tasks = await _repository.GetAllAsync();
-        var completed = tasks.Count(t => t.Status == TaskStatus.Done);
-        var inProgress = tasks.Count(t => t.Status == TaskStatus.InProgress);
+        await EnsureSeededAsync();
+        return _insightMetrics.ToList();
+    }
 
-        var metrics = new List<InsightMetric>
-        {
-            new("Tasks Completed", completed.ToString(), "Completed tasks in workspace.", completed),
-            new("Active Tasks", inProgress.ToString(), "Tasks currently running.", inProgress * 10),
-            new("Agent Utilization", "Live", "Real-time metrics calculated from repository.", 85)
-        };
-
-        return metrics;
+    public async Task<IReadOnlyList<InsightMetric>> ExportInsightsAsync()
+    {
+        await EnsureSeededAsync();
+        _insightMetrics.Insert(0, new InsightMetric("Last Export", "Just now", "Insights exported for reporting.", 100));
+        return _insightMetrics.ToList();
     }
 
     public async Task<IReadOnlyList<InsightMetric>> ExportInsightsAsync()
