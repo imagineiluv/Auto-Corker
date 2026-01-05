@@ -49,14 +49,17 @@ public static class MauiProgram
 		builder.Services.AddMauiBlazorWebView();
 		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "BlazorWebView added\n"); } catch { }
 
+		builder.Services.AddSingleton<ModelProvisioningService>();
 		builder.Services.AddSingleton<ILLMService>(serviceProvider =>
 		{
 			var logger = serviceProvider.GetRequiredService<ILogger<Lfm2TextCompletionService>>();
 			var settingsService = serviceProvider.GetRequiredService<ISettingsService>();
+			var provisioningService = serviceProvider.GetRequiredService<ModelProvisioningService>();
 			var modelPath = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH")
 				?? Path.Combine(FileSystem.AppDataDirectory, "models", "lfm2.gguf");
-			var service = new Lfm2TextCompletionService(modelPath, logger, settingsService);
-			service.Initialize();
+			var service = new Lfm2TextCompletionService(modelPath, logger, settingsService, provisioningService);
+			// Initialize asynchronously in background to avoid blocking startup
+			_ = Task.Run(() => service.InitializeAsync());
 			return service;
 		});
 		builder.Services.AddSingleton<ILLMStatusProvider>(serviceProvider =>
@@ -67,7 +70,6 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IFileSystemService, FileSystemService>();
 		builder.Services.AddSingleton<IProcessService, ProcessSandboxService>();
 		builder.Services.AddSingleton<ISettingsService, YamlSettingsService>();
-		builder.Services.AddSingleton<ModelProvisioningService>();
 		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Infrastructure services added\n"); } catch { }
 
 		// Persistence

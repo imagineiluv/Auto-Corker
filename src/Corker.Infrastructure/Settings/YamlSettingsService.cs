@@ -16,8 +16,15 @@ public class YamlSettingsService : ISettingsService
     public YamlSettingsService(ILogger<YamlSettingsService> logger)
     {
         _logger = logger;
-        // Default to appsettings.yaml in app directory
-        _settingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.yaml");
+        // Default to appsettings.yaml in app data directory
+        _settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Corker", "appsettings.yaml");
+
+        // Ensure directory exists
+        var directory = Path.GetDirectoryName(_settingsPath);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
 
         _serializer = new SerializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)

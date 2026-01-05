@@ -24,6 +24,7 @@ public class ModelProvisioningService
 
         _logger.LogInformation("Model not found at {ModelPath}. Downloading from {Url}...", modelPath, downloadUrl);
 
+        var tempPath = modelPath + ".download";
         try
         {
             var directory = System.IO.Path.GetDirectoryName(modelPath);
@@ -36,18 +37,27 @@ public class ModelProvisioningService
             response.EnsureSuccessStatusCode();
 
             using var stream = await response.Content.ReadAsStreamAsync();
-            using var fileStream = new FileStream(modelPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            using var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
 
             await stream.CopyToAsync(fileStream);
+            
+            // Close the stream before moving
+            fileStream.Close();
+
+            if (System.IO.File.Exists(modelPath))
+            {
+                System.IO.File.Delete(modelPath);
+            }
+            System.IO.File.Move(tempPath, modelPath);
 
             _logger.LogInformation("Model downloaded successfully to {ModelPath}", modelPath);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to download model.");
-            if (System.IO.File.Exists(modelPath))
+            if (System.IO.File.Exists(tempPath))
             {
-                try { System.IO.File.Delete(modelPath); } catch { } // Cleanup partial download
+                try { System.IO.File.Delete(tempPath); } catch { } // Cleanup partial download
             }
             throw;
         }
