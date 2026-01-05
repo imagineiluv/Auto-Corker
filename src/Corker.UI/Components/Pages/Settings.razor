@@ -1,8 +1,12 @@
-﻿@page "/settings"
+@page "/settings"
 @using System.Linq
 @using Corker.Orchestrator.Models
 @using Microsoft.AspNetCore.WebUtilities
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@using Corker.Core.Settings
+@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@inject Corker.Core.Interfaces.ISettingsService SettingsService
+@inject Corker.Core.Interfaces.ILLMStatusProvider LlmStatusProvider
 @inject NavigationManager NavigationManager
 
 <section class="page-header">
@@ -20,8 +24,10 @@
 <section class="tab-shell">
     <div class="tab-list">
         <button class="tab-pill @(IsActive("app"))" type="button" @onclick="@(() => SetActiveTab("app"))">App</button>
-        <button class="tab-pill @(IsActive("project"))" type="button" @onclick="@(() => SetActiveTab("project"))">Project</button>
-        <button class="tab-pill @(IsActive("agents"))" type="button" @onclick="@(() => SetActiveTab("agents"))">Agents</button>
+        <button class="tab-pill @(IsActive("project"))" type="button"
+            @onclick="@(() => SetActiveTab("project"))">Project</button>
+        <button class="tab-pill @(IsActive("agents"))" type="button"
+            @onclick="@(() => SetActiveTab("agents"))">Agents</button>
     </div>
 </section>
 
@@ -191,6 +197,8 @@
 @code {
     private string _activeTab = "app";
     private IReadOnlyList<SettingsSection> _sections = Array.Empty<SettingsSection>();
+    private AppSettings _appSettings = new();
+
     private string _localLlmLabel = "Local LLM";
     private string _localLlmStatus = "muted";
     private string _saveLabel = "Save";
@@ -209,7 +217,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _sections = await DashboardService.GetSettingsAsync();
+        await LoadSettingsAsync();
+
+        // Refresh base status from DashboardService (e.g. LLM status which is runtime, not config)
         var status = await DashboardService.GetLocalLlmStatusAsync();
         _localLlmLabel = status.IsAvailable ? "Local LLM Ready" : "Local LLM Missing";
         _localLlmStatus = status.IsAvailable ? "green" : "warning";

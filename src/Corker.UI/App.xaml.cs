@@ -1,11 +1,51 @@
-﻿namespace Corker.UI;
+﻿using Corker.Core.Interfaces;
+using Corker.Infrastructure.AI;
+
+namespace Corker.UI;
 
 public partial class App : Application
 {
-	public App()
-	{
-		InitializeComponent();
+	private readonly IServiceProvider _serviceProvider;
 
-		MainPage = new MainPage();
+	public App(IServiceProvider serviceProvider)
+	{
+		_serviceProvider = serviceProvider;
+		InitializeComponent();
+	}
+
+	protected override Window CreateWindow(IActivationState? activationState)
+	{
+		return new Window(new MainPage());
+	}
+
+	protected override async void OnStart()
+	{
+		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "App.OnStart called\n"); } catch { }
+		base.OnStart();
+
+		try
+		{
+			try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Resolving ModelProvisioningService\n"); } catch { }
+			var provisioning = _serviceProvider.GetRequiredService<ModelProvisioningService>();
+			try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Resolving ILLMService\n"); } catch { }
+			var llmService = _serviceProvider.GetRequiredService<ILLMService>();
+
+			if (llmService is Lfm2TextCompletionService lfmService)
+			{
+				var modelPath = lfmService.ModelPath;
+				var downloadUrl = "https://github.com/imagineiluv/Auto-Corker/raw/main/LFM2-1.2B-Q4_K_M.gguf";
+
+				await provisioning.EnsureModelExistsAsync(modelPath, downloadUrl);
+
+				if (!lfmService.IsInitialized)
+				{
+					lfmService.Initialize();
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Failed to provision model: {ex}");
+		}
 	}
 }

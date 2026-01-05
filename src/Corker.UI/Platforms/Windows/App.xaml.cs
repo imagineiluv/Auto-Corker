@@ -16,7 +16,15 @@ public partial class App : MauiWinUIApplication
 	/// </summary>
 	public App()
 	{
-		this.InitializeComponent();
+		try
+		{
+			this.InitializeComponent();
+		}
+		catch (Exception ex)
+		{
+			try { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "crash_log.txt"), ex.ToString()); } catch { }
+			throw;
+		}
 	}
 
 	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();

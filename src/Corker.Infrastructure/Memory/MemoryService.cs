@@ -1,32 +1,28 @@
-using Microsoft.KernelMemory;
+using Corker.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Corker.Infrastructure.Memory;
 
-public class MemoryService
+public class MemoryService : IMemoryService
 {
-    private readonly IKernelMemory _memory;
     private readonly ILogger<MemoryService> _logger;
 
-    public MemoryService(IKernelMemory memory, ILogger<MemoryService> logger)
+    public MemoryService(ILogger<MemoryService> logger)
     {
-        _memory = memory;
         _logger = logger;
     }
 
-    public async Task ImportDocumentAsync(string filePath, string documentId)
+    public Task ImportDocumentAsync(string filePath, string documentId)
     {
         _logger.LogInformation("Importing document {FilePath}", filePath);
-        await _memory.ImportDocumentAsync(filePath, documentId);
+        // Placeholder implementation
+        return Task.CompletedTask;
     }
 
-    public async Task<string> SearchAsync(string query)
+    public Task<string> SearchAsync(string query)
     {
         _logger.LogInformation("Searching memory for: {Query}", query);
-        var result = await _memory.SearchAsync(query);
-        if (result.NoResult) return "No information found.";
-
-        // Aggregate results
-        return string.Join("\n", result.Results.SelectMany(r => r.Partitions).Select(p => p.Text));
+        // Placeholder implementation
+        return Task.FromResult("Memory search not implemented.");
     }
 }

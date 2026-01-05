@@ -11,6 +11,8 @@ public class WorkspaceDashboardService
     private readonly IAgentService _agentService;
     private readonly ILLMService _llmService;
     private readonly ILLMStatusProvider _llmStatusProvider;
+    private readonly ISettingsService _settingsService;
+    private readonly ITaskRepository _repository;
     private readonly ILogger<WorkspaceDashboardService> _logger;
     private readonly List<IdeaCard> _ideas = new();
     private readonly List<IssueItem> _issues = new();
@@ -41,17 +43,21 @@ public class WorkspaceDashboardService
         IAgentService agentService,
         ILLMService llmService,
         ILLMStatusProvider llmStatusProvider,
+        ISettingsService settingsService,
+        ITaskRepository repository,
         ILogger<WorkspaceDashboardService> logger)
     {
         _agentService = agentService;
         _llmService = llmService;
         _llmStatusProvider = llmStatusProvider;
+        _settingsService = settingsService;
+        _repository = repository;
         _logger = logger;
     }
 
     public async Task<IReadOnlyList<KanbanColumn>> GetKanbanAsync()
     {
-        await EnsureSeededAsync();
+        // No seeding needed, we rely on persistence now
         var tasks = await _agentService.GetTasksAsync();
         var cards = tasks.Select(BuildTaskCard).ToList();
 
@@ -59,7 +65,7 @@ public class WorkspaceDashboardService
         {
             new("backlog", "Backlog", cards.Where(card => card.Status == TaskStatus.Pending).ToList()),
             new("in-progress", "In Progress", cards.Where(card => card.Status == TaskStatus.InProgress).ToList()),
-            new("ai-review", "AI Review", new List<TaskCard>()),
+            new("ai-review", "AI Review", new List<TaskCard>()), // Could map to Review status if we differentiate
             new("human-review", "Human Review", cards.Where(card => card.Status == TaskStatus.Review).ToList()),
             new("done", "Done", cards.Where(card => card.Status == TaskStatus.Done).ToList())
         };
@@ -78,21 +84,41 @@ public class WorkspaceDashboardService
 
     public async Task<IReadOnlyList<IdeaCard>> GetIdeasAsync()
     {
-        await EnsureSeededAsync();
-        return _ideas.ToList();
+        // Fetch from repository instead of mock list
+        var ideas = await _repository.GetIdeasAsync();
+        return ideas.Select(i => new IdeaCard(
+            i.Id,
+            i.Title,
+            i.Type,
+            i.Status,
+            i.Impact,
+            i.Summary,
+            i.Description,
+            i.Owner,
+            i.Status == "Converted" ? "green" : (i.Status == "Dismissed" ? "muted" : "purple")
+        )).ToList();
     }
 
     public async Task<IReadOnlyList<IdeaCard>> GenerateIdeasAsync(int count)
     {
-        await EnsureSeededAsync();
-
         var generated = await TryGenerateIdeasAsync(count);
-        foreach (var idea in generated)
+        foreach (var card in generated)
         {
-            _ideas.Insert(0, idea);
+            var idea = new Idea
+            {
+                Id = card.Id,
+                Title = card.Title,
+                Description = card.Description,
+                Status = card.Status,
+                Type = card.Type,
+                Impact = card.Impact,
+                Owner = card.Owner,
+                Summary = card.Summary
+            };
+            await _repository.CreateIdeaAsync(idea);
         }
 
-        return _ideas.ToList();
+        return await GetIdeasAsync();
     }
 
     public async Task<IReadOnlyList<IssueItem>> GetIssuesAsync()
@@ -494,6 +520,13 @@ public class WorkspaceDashboardService
         return _insightMetrics.ToList();
     }
 
+    public async Task<IReadOnlyList<InsightMetric>> ExportInsightsAsync()
+    {
+        await EnsureSeededAsync();
+        _insightMetrics.Insert(0, new InsightMetric("Last Export", "Just now", "Insights exported for reporting.", 100));
+        return _insightMetrics.ToList();
+    }
+
     public async Task<IReadOnlyList<RoadmapGroup>> GetRoadmapByPriorityAsync()
     {
         await EnsureSeededAsync();
@@ -625,6 +658,7 @@ public class WorkspaceDashboardService
     public async Task<IReadOnlyList<SettingsSection>> GetSettingsAsync()
     {
         await EnsureSeededAsync();
+        var settings = await _settingsService.LoadAsync();
         var localLlmLabel = _llmStatusProvider.IsAvailable ? "Local LLM (Ready)" : "Local LLM (Missing)";
         var statusClass = _llmStatusProvider.IsAvailable ? "green" : "warning";
 
@@ -633,18 +667,18 @@ public class WorkspaceDashboardService
             new("Model", new List<SettingsItem>
             {
                 new("Provider", localLlmLabel, statusClass, "Details"),
-                new("Model Path", _llmStatusProvider.ModelPath, "muted", "Browse"),
-                new("Context Window", "4096", "muted", "Adjust")
+                new("Model Path", settings.ModelPath, "muted", "Browse"),
+                new("Context Window", settings.ContextWindow.ToString(), "muted", "Adjust")
             }),
             new("Project", new List<SettingsItem>
             {
-                new("Repository Path", "/repos/corker", "muted", "Browse"),
-                new("Auto Sync", "Enabled", "green", "Configure")
+                new("Repository Path", string.IsNullOrEmpty(settings.RepoPath) ? "/repos/corker" : settings.RepoPath, "muted", "Browse"),
+                new("Auto Sync", settings.AutoSync ? "Enabled" : "Paused", settings.AutoSync ? "green" : "muted", "Configure")
             }),
             new("Agents", new List<SettingsItem>
             {
-                new("Validation Mode", "Sandboxed", "warning", "Edit"),
-                new("Parallel Tasks", "3 max", "muted", "Adjust")
+                new("Validation Mode", settings.Sandboxed ? "Sandboxed" : "Permissive", settings.Sandboxed ? "warning" : "muted", "Edit"),
+                new("Parallel Tasks", $"{settings.MaxParallelTasks} max", "muted", "Adjust")
             })
         };
 
@@ -680,12 +714,14 @@ public class WorkspaceDashboardService
         }
 
         _seeded = true;
+        await Task.Yield(); // Ensure UI responsiveness during seeding
 
         var taskOne = await _agentService.CreateTaskAsync("Add Electron debugging server", "Expand validation layers and expose dev tooling hooks.");
         await _agentService.UpdateTaskStatusAsync(taskOne.Id, TaskStatus.Pending);
 
         var taskTwo = await _agentService.CreateTaskAsync("Roadmap generation flow", "Streaming roadmap tasks into review queue.");
-        await _agentService.UpdateTaskStatusAsync(taskTwo.Id, TaskStatus.InProgress);
+        // Changed to Pending to avoid triggering the agent loop during seeding, which might freeze the UI on startup
+        await _agentService.UpdateTaskStatusAsync(taskTwo.Id, TaskStatus.Pending);
 
         var taskThree = await _agentService.CreateTaskAsync("Go-to-task shortcut", "After converting an idea to a task, show a Go to Task button.");
         await _agentService.UpdateTaskStatusAsync(taskThree.Id, TaskStatus.Review);
