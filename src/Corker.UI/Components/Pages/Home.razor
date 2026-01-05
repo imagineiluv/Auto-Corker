@@ -23,8 +23,8 @@
     @foreach (var column in _columns)
     {
         <div class="kanban-column @GetColumnClass(column.Key)"
-             @ondragover:preventDefault
-             @ondrop="() => OnDrop(column.Key)">
+             ondragover="event.preventDefault();"
+             @ondrop="() => HandleDrop(column.Key)">
             <header class="kanban-column-header">
                 <div class="column-title">
                     <h2>@column.Title</h2>
@@ -50,7 +50,7 @@
             {
                 @foreach (var task in column.Tasks)
                 {
-                    <article class="task-card" draggable="true" @ondragstart="() => OnDragStart(task)">
+                    <article class="task-card" draggable="true" @ondragstart="() => HandleDragStart(task)">
                         <div class="task-header">
                             <div class="task-title">@task.Title</div>
                             <span class="pill @task.StatusClass">@task.StatusLabel</span>
@@ -166,9 +166,6 @@
 @code {
     private IReadOnlyList<KanbanColumn> _columns = Array.Empty<KanbanColumn>();
     private bool _showArchived;
-    private bool _showCreateModal;
-    private string _newTaskTitle = string.Empty;
-    private string _newTaskDescription = string.Empty;
     private TaskCard? _draggedTask;
 
     protected override async Task OnInitializedAsync()
@@ -202,13 +199,12 @@
         await ReloadAsync();
     }
 
-    // Drag & Drop Handlers
-    private void OnDragStart(TaskCard task)
+    private void HandleDragStart(TaskCard task)
     {
         _draggedTask = task;
     }
 
-    private async Task OnDrop(string columnKey)
+    private async Task HandleDrop(string columnKey)
     {
         if (_draggedTask == null) return;
 
@@ -216,13 +212,12 @@
         {
             "backlog" => Corker.Core.Entities.TaskStatus.Pending,
             "in-progress" => Corker.Core.Entities.TaskStatus.InProgress,
-            "ai-review" => Corker.Core.Entities.TaskStatus.Review,
             "human-review" => Corker.Core.Entities.TaskStatus.Review,
             "done" => Corker.Core.Entities.TaskStatus.Done,
-            _ => Corker.Core.Entities.TaskStatus.Pending
+            _ => _draggedTask.Status
         };
 
-        if (_draggedTask.Status != newStatus)
+        if (newStatus != _draggedTask.Status)
         {
             await DashboardService.UpdateTaskStatusAsync(_draggedTask.Id, newStatus);
             await ReloadAsync();

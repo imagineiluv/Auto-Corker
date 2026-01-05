@@ -1,5 +1,4 @@
-﻿@page "/agent-terminals"
-@implements IDisposable
+@page "/agent-terminals"
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
@@ -16,111 +15,84 @@
     </div>
 </section>
 
-<section class="terminal-grid">
-    @foreach (var terminal in _terminals)
-    {
-        <article class="terminal-card">
-            <header class="terminal-header">
-                <div class="terminal-badges">
-                    <span class="pill green">Claude</span>
-                    <span class="pill muted">@terminal.Mode</span>
-                </div>
-                <div class="terminal-title">@terminal.Name</div>
-            </header>
-            <div class="terminal-preview">
-                @foreach (var line in terminal.Lines)
-                {
-                    <code>@line</code>
-                }
-            </div>
-            <div class="terminal-footer">
-                <span class="pill @terminal.StatusClass">@terminal.Status</span>
-                <span class="pill muted">@terminal.ActivityLabel</span>
-            </div>
-        </article>
-    }
+<div class="tab-shell">
+    <div class="tab-list">
+        @foreach (var terminal in _terminals)
+        {
+            <button class="tab-pill @(terminal == _activeTerminal ? "active" : "")"
+                    @onclick="() => SelectTerminal(terminal)">
+                @terminal.Name
+            </button>
+        }
+    </div>
+</div>
 
-    <!-- Live Agent Logs -->
-    <article class="terminal-card">
+@if (_activeTerminal != null)
+{
+    <article class="terminal-card" style="height: 60vh;">
         <header class="terminal-header">
             <div class="terminal-badges">
-                <span class="pill purple">Agent Loop</span>
-                <span class="pill muted">Live</span>
+                <span class="pill green">Claude</span>
+                <span class="pill muted">@_activeTerminal.Mode</span>
             </div>
-            <div class="terminal-title">Main Agent Process</div>
+            <div class="terminal-title">@_activeTerminal.Name</div>
         </header>
-        <div class="terminal-preview">
-            @foreach (var line in _liveLogs)
+        <div class="terminal-preview" style="flex: 1; overflow-y: auto;">
+            @foreach (var line in _activeTerminal.Lines)
             {
-                <div class="log-line">@line</div>
+                <div style="font-family: monospace;">
+                    <span style="color: #5c7cff;">$</span> <code>@line</code>
+                </div>
             }
         </div>
         <div class="terminal-footer">
-            <span class="pill green">Active</span>
-            <span class="pill muted">Streaming</span>
+            <span class="pill @_activeTerminal.StatusClass">@_activeTerminal.Status</span>
+            <span class="pill muted">@_activeTerminal.ActivityLabel</span>
         </div>
     </article>
-</section>
+}
+else
+{
+    <div class="empty-state">
+        <div class="empty-icon">💻</div>
+        <p>No active terminals</p>
+        <button class="primary-button" @onclick="CreateTerminalAsync">Create Terminal</button>
+    </div>
+}
 
 @code {
     private IReadOnlyList<TerminalSnapshot> _terminals = Array.Empty<TerminalSnapshot>();
-    private List<string> _liveLogs = new();
-
-    [Inject] private Corker.Core.Interfaces.IAgentService AgentService { get; set; } = default!;
+    private TerminalSnapshot? _activeTerminal;
 
     protected override async Task OnInitializedAsync()
     {
         _terminals = await DashboardService.GetTerminalsAsync();
-        var logs = await AgentService.GetLogsAsync();
-        _liveLogs = logs.ToList();
-
-        AgentService.OnLogReceived += HandleLog;
-    }
-
-    public void Dispose()
-    {
-        if (AgentService != null)
+        if (_terminals.Count > 0)
         {
-            AgentService.OnLogReceived -= HandleLog;
+            _activeTerminal = _terminals[0];
         }
     }
 
-    private void HandleLog(object? sender, string message)
+    private void SelectTerminal(TerminalSnapshot terminal)
     {
-        InvokeAsync(() =>
-        {
-            _liveLogs.Add(message);
-            StateHasChanged();
-        });
+        _activeTerminal = terminal;
     }
 
     private async Task OpenFileExplorerAsync()
     {
         _terminals = await DashboardService.OpenFileExplorerAsync();
+        if (_terminals.Count > 0) _activeTerminal = _terminals[0];
     }
 
     private async Task RestoreSessionAsync()
     {
         _terminals = await DashboardService.RestoreTerminalSessionAsync();
+        if (_terminals.Count > 0) _activeTerminal = _terminals[0];
     }
 
     private async Task CreateTerminalAsync()
     {
         _terminals = await DashboardService.CreateTerminalAsync();
-    }
-
-    private async Task OpenFileExplorerAsync()
-    {
-        _terminals = await DashboardService.OpenFileExplorerAsync();
-    }
-
-    private async Task RestoreSessionAsync()
-    {
-        _terminals = await DashboardService.RestoreTerminalSessionAsync();
-    }
-
-    private async Task CreateTerminalAsync()
-    {
-        _terminals = await DashboardService.CreateTerminalAsync();
+        if (_terminals.Count > 0) _activeTerminal = _terminals[0];
     }
 }
