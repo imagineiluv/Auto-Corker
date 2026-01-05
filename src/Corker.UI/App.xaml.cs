@@ -11,8 +11,11 @@ public partial class App : Application
 	{
 		_serviceProvider = serviceProvider;
 		InitializeComponent();
+	}
 
-		MainPage = new MainPage();
+	protected override Window CreateWindow(IActivationState? activationState)
+	{
+		return new Window(new MainPage());
 	}
 
 	protected override async void OnStart()

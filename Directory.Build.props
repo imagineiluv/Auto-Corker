@@ -8,7 +8,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <MauiVersion>8.0.90</MauiVersion>
+    <MauiVersion>9.0.0</MauiVersion>
 
     <!--
       ⚡ Bolt: Performance Optimizations

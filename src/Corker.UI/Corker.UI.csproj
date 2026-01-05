@@ -1,12 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
-        <TargetFrameworks>net8.0-maccatalyst</TargetFrameworks>
-        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">
-            $(TargetFrameworks);net8.0-windows10.0.19041.0</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net9.0-maccatalyst</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">net9.0-windows10.0.19041.0</TargetFrameworks>
         <!-- Uncomment to also build the tizen app. You will need to install tizen by following
         this: https://github.com/Samsung/Tizen.NET -->
-        <!-- <TargetFrameworks>$(TargetFrameworks);net8.0-tizen</TargetFrameworks> -->
+        <!-- <TargetFrameworks>$(TargetFrameworks);net9.0-tizen</TargetFrameworks> -->
 
         <!-- Note for MacCatalyst:
             The default runtime is maccatalyst-x64, except in Release config, in which case the default is
@@ -27,6 +26,8 @@
         <NoWarn>$(NoWarn);CA1416;CA1418</NoWarn>
         <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
         <WindowsPackageType>None</WindowsPackageType>
+        <_SuppressSdkVersionCheck>true</_SuppressSdkVersionCheck>
+        <ValidateXcodeVersion>false</ValidateXcodeVersion>
 
         <!-- Display name -->
         <ApplicationTitle>Corker.UI</ApplicationTitle>
@@ -41,9 +42,7 @@
         <SupportedOSPlatformVersion
             Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
             14.2</SupportedOSPlatformVersion>
-        <SupportedOSPlatformVersion
-            Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
-            14.0</SupportedOSPlatformVersion>
+
         <SupportedOSPlatformVersion
             Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
             24.0</SupportedOSPlatformVersion>
@@ -93,5 +92,9 @@
     <ItemGroup>
         <ProjectReference Include="..\Corker.Orchestrator\Corker.Orchestrator.csproj" />
     </ItemGroup>
+
+    <Target Name="RemoveResourceForksFromBundle" BeforeTargets="_CodesignAppBundle">
+        <Exec Command="xattr -cr &quot;$(AppBundleDir)&quot;" Condition="'$(AppBundleDir)' != ''" />
+    </Target>
 
 </Project>
