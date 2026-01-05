@@ -6,13 +6,75 @@
 
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
-    <PackageReference Include="LLamaSharp" Version="0.16.0" />
-    <PackageReference Include="LLamaSharp.Backend.Cuda11" Version="0.16.0" />
-    <PackageReference Include="Microsoft.KernelMemory.Core" Version="0.98.250508.3" />
+    <PackageReference Include="LiteDB" Version="5.0.21" />
+    <PackageReference Include="LLamaSharp" Version="0.25.0" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.25.0" GeneratePathProperty="true" />
+    <PackageReference Include="LLamaSharp.Backend.Cuda12" Version="0.25.0" GeneratePathProperty="true" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- CPU Backend -->
+    <Content Include="$(PkgLLamaSharp_Backend_Cpu)\runtimes\win-x64\native\*.*"
+      Condition="Exists('$(PkgLLamaSharp_Backend_Cpu)\runtimes\win-x64\native') And $([MSBuild]::IsOSPlatform('windows'))">
+      <Link>runtimes\cpu\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="$(PkgLLamaSharp_Backend_Cpu)\runtimes\linux-x64\native\*.*"
+      Condition="Exists('$(PkgLLamaSharp_Backend_Cpu)\runtimes\linux-x64\native') And $([MSBuild]::IsOSPlatform('linux'))">
+      <Link>runtimes\cpu\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="$(PkgLLamaSharp_Backend_Cpu)\runtimes\linux-arm64\native\*.*"
+      Condition="Exists('$(PkgLLamaSharp_Backend_Cpu)\runtimes\linux-arm64\native') And $([MSBuild]::IsOSPlatform('linux'))">
+      <Link>runtimes\cpu\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="$(PkgLLamaSharp_Backend_Cpu)\runtimes\osx-x64\native\*.*"
+      Condition="false">
+      <Link>runtimes\cpu\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="$(PkgLLamaSharp_Backend_Cpu)\runtimes\osx-arm64\native\*.*"
+      Condition="false">
+      <Link>runtimes\cpu\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+
+    <!-- CUDA Backend -->
+    <Content Include="$(PkgLLamaSharp_Backend_Cuda12)\runtimes\win-x64\native\*.*"
+      Condition="Exists('$(PkgLLamaSharp_Backend_Cuda12)\runtimes\win-x64\native') And $([MSBuild]::IsOSPlatform('windows'))">
+      <Link>runtimes\cuda\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="$(PkgLLamaSharp_Backend_Cuda12)\runtimes\win-x64\native\cuda12\*.*"
+      Condition="Exists('$(PkgLLamaSharp_Backend_Cuda12)\runtimes\win-x64\native\cuda12') And $([MSBuild]::IsOSPlatform('windows'))">
+      <Link>runtimes\cuda\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="$(PkgLLamaSharp_Backend_Cuda12)\runtimes\linux-x64\native\*.*"
+      Condition="Exists('$(PkgLLamaSharp_Backend_Cuda12)\runtimes\linux-x64\native') And $([MSBuild]::IsOSPlatform('linux'))">
+      <Link>runtimes\cuda\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
+    <Content Include="$(PkgLLamaSharp_Backend_Cuda12)\runtimes\linux-x64\native\cuda12\*.*"
+      Condition="Exists('$(PkgLLamaSharp_Backend_Cuda12)\runtimes\linux-x64\native\cuda12') And $([MSBuild]::IsOSPlatform('linux'))">
+      <Link>runtimes\cuda\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </Content>
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
