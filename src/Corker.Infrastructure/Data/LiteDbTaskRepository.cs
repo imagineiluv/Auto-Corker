@@ -1,105 +1,102 @@
 using Corker.Core.Entities;
 using Corker.Core.Interfaces;
 using LiteDB;
-using Microsoft.Extensions.Logging;
 
 namespace Corker.Infrastructure.Data;
 
-public class LiteDbTaskRepository : ITaskRepository, IDisposable
+public class LiteDbTaskRepository : ITaskRepository
 {
-    private readonly LiteDatabase _db;
-    private readonly ILogger<LiteDbTaskRepository> _logger;
-    private readonly ILiteCollection<AgentTask> _tasks;
-    private readonly ILiteCollection<LogEntry> _logs;
-    private readonly ILiteCollection<Idea> _ideas;
+    private readonly string _dbPath = "corker_data.db";
 
-    public LiteDbTaskRepository(string connectionString, ILogger<LiteDbTaskRepository> logger)
+    public LiteDbTaskRepository()
     {
-        _logger = logger;
-        _logger.LogInformation("Initializing LiteDB at {ConnectionString}", connectionString);
+    }
 
-        // Ensure directory exists
-        var dir = Path.GetDirectoryName(connectionString);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
-
-        _db = new LiteDatabase(connectionString);
-        _tasks = _db.GetCollection<AgentTask>("tasks");
-        _logs = _db.GetCollection<LogEntry>("logs");
-        _ideas = _db.GetCollection<Idea>("ideas");
+    private LiteDatabase GetDb()
+    {
+        return new LiteDatabase(_dbPath);
     }
 
     public Task<AgentTask> CreateAsync(AgentTask task)
     {
-        _tasks.Insert(task);
+        using var db = GetDb();
+        var col = db.GetCollection<AgentTask>("tasks");
+        col.Insert(task);
         return Task.FromResult(task);
     }
 
     public Task UpdateAsync(AgentTask task)
     {
-        _tasks.Update(task);
+        using var db = GetDb();
+        var col = db.GetCollection<AgentTask>("tasks");
+        task.UpdatedAt = DateTime.UtcNow;
+        col.Update(task);
         return Task.CompletedTask;
     }
 
     public Task<AgentTask?> GetByIdAsync(Guid id)
     {
-        var task = _tasks.FindById(id);
-        return Task.FromResult<AgentTask?>(task);
+        using var db = GetDb();
+        var col = db.GetCollection<AgentTask>("tasks");
+        return Task.FromResult(col.FindById(id));
     }
 
     public Task<IReadOnlyList<AgentTask>> GetAllAsync()
     {
-        return Task.FromResult<IReadOnlyList<AgentTask>>(_tasks.FindAll().ToList());
+        using var db = GetDb();
+        var col = db.GetCollection<AgentTask>("tasks");
+        var tasks = col.FindAll().ToList();
+        return Task.FromResult<IReadOnlyList<AgentTask>>(tasks);
     }
 
     public Task AddLogAsync(string message)
     {
-        _logs.Insert(new LogEntry { Timestamp = DateTime.UtcNow, Message = message });
+        using var db = GetDb();
+        var col = db.GetCollection<LogEntry>("logs");
+        col.Insert(new LogEntry { Message = message, Timestamp = DateTime.UtcNow });
         return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<string>> GetLogsAsync(int limit = 1000)
     {
-        var logs = _logs.Query()
+        using var db = GetDb();
+        var col = db.GetCollection<LogEntry>("logs");
+        var logs = col.Query()
             .OrderByDescending(x => x.Timestamp)
             .Limit(limit)
-            .ToList()
-            .OrderBy(x => x.Timestamp)
-            .Select(x => x.Message)
+            .ToEnumerable()
+            .Select(x => $"[{x.Timestamp:HH:mm:ss}] {x.Message}")
             .ToList();
-
         return Task.FromResult<IReadOnlyList<string>>(logs);
     }
 
     public Task<Idea> CreateIdeaAsync(Idea idea)
     {
-        _ideas.Insert(idea);
+        using var db = GetDb();
+        var col = db.GetCollection<Idea>("ideas");
+        col.Insert(idea);
         return Task.FromResult(idea);
     }
 
     public Task UpdateIdeaAsync(Idea idea)
     {
-        _ideas.Update(idea);
+        using var db = GetDb();
+        var col = db.GetCollection<Idea>("ideas");
+        col.Update(idea);
         return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<Idea>> GetIdeasAsync()
     {
-        return Task.FromResult<IReadOnlyList<Idea>>(_ideas.FindAll().ToList());
+        using var db = GetDb();
+        var col = db.GetCollection<Idea>("ideas");
+        return Task.FromResult<IReadOnlyList<Idea>>(col.FindAll().ToList());
     }
 
-    public void Dispose()
-    {
-        _db.Dispose();
-    }
-
-    // Internal helper for logging persistence
     private class LogEntry
     {
-        public int Id { get; set; }
-        public DateTime Timestamp { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
         public string Message { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
     }
 }

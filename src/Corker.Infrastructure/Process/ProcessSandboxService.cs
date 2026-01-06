@@ -1,63 +1,41 @@
 using System.Diagnostics;
 using Corker.Core.Interfaces;
-using Microsoft.Extensions.Logging;
 
 namespace Corker.Infrastructure.Process;
 
 public class ProcessSandboxService : IProcessService
 {
-    private readonly ILogger<ProcessSandboxService> _logger;
-
-    public ProcessSandboxService(ILogger<ProcessSandboxService> logger)
+    public async Task<string> RunCommandAsync(string command, string arguments, string workingDirectory = "")
     {
-        _logger = logger;
-    }
-
-    public async Task<(int ExitCode, string Output, string Error)> ExecuteCommandAsync(string command, string arguments, string workingDirectory)
-    {
-        _logger.LogInformation("Executing command: {Command} {Arguments} in {WorkingDirectory}", command, arguments, workingDirectory);
-
-        var startInfo = new ProcessStartInfo
+        var psi = new ProcessStartInfo
         {
             FileName = command,
             Arguments = arguments,
-            WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            WorkingDirectory = string.IsNullOrEmpty(workingDirectory) ? Directory.GetCurrentDirectory() : workingDirectory
         };
 
-        using var process = new System.Diagnostics.Process();
-        process.StartInfo = startInfo;
+        using var process = System.Diagnostics.Process.Start(psi);
+        if (process == null) return "Failed to start process.";
 
-        var output = new System.Text.StringBuilder();
-        var error = new System.Text.StringBuilder();
+        // Read stdout and stderr concurrently to prevent deadlocks
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
 
-        process.OutputDataReceived += (sender, e) =>
+        await Task.WhenAll(outputTask, errorTask);
+        await process.WaitForExitAsync();
+
+        var output = outputTask.Result;
+        var error = errorTask.Result;
+
+        if (process.ExitCode != 0)
         {
-            if (e.Data != null) output.AppendLine(e.Data);
-        };
-        process.ErrorDataReceived += (sender, e) =>
-        {
-            if (e.Data != null) error.AppendLine(e.Data);
-        };
-
-        try
-        {
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            // Timeout after 5 minutes to prevent hangs
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(5));
-
-            return (process.ExitCode, output.ToString(), error.ToString());
+            return $"Error (Exit Code {process.ExitCode}): {error}";
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to execute command {Command}", command);
-            return (-1, string.Empty, ex.Message);
-        }
+
+        return output;
     }
 }

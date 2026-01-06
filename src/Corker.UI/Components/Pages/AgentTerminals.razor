@@ -1,98 +1,125 @@
-@page "/agent-terminals"
-@using Corker.Orchestrator.Models
-@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@page "/terminals"
+@using Corker.Core.Interfaces
+@inject IAgentService AgentService
 
-<section class="page-header">
-    <div>
-        <span class="page-kicker">Workspace</span>
-        <h1>Agent Terminals</h1>
-        <p class="page-subtitle">Live command outputs and agent status snapshots.</p>
-    </div>
-    <div class="page-actions">
-        <button class="ghost-button" type="button" @onclick="OpenFileExplorerAsync">File Explorer</button>
-        <button class="ghost-button" type="button" @onclick="RestoreSessionAsync">Restore Session</button>
-        <button class="primary-button" type="button" @onclick="CreateTerminalAsync">+ New Terminal</button>
-    </div>
-</section>
+<h3>Agent Terminals</h3>
 
-<div class="tab-shell">
-    <div class="tab-list">
-        @foreach (var terminal in _terminals)
+<div class="terminal-container">
+    <div class="tabs">
+        @foreach (var agent in Agents)
         {
-            <button class="tab-pill @(terminal == _activeTerminal ? "active" : "")"
-                    @onclick="() => SelectTerminal(terminal)">
-                @terminal.Name
+            <button class="tab-button @(SelectedAgentId == agent.Id ? "active" : "")" @onclick="() => SelectAgent(agent.Id)">
+                @agent.Name (@agent.Role)
+                <span class="status-indicator @GetStatusClass(agent.Status)"></span>
             </button>
+        }
+    </div>
+
+    <div class="terminal-view">
+        @if (SelectedAgentId != Guid.Empty)
+        {
+            <div class="terminal-output">
+                @foreach (var log in Logs)
+                {
+                    <div class="log-line">@log</div>
+                }
+            </div>
+        }
+        else
+        {
+            <p>Select an agent to view logs.</p>
         }
     </div>
 </div>
 
-@if (_activeTerminal != null)
-{
-    <article class="terminal-card" style="height: 60vh;">
-        <header class="terminal-header">
-            <div class="terminal-badges">
-                <span class="pill green">Claude</span>
-                <span class="pill muted">@_activeTerminal.Mode</span>
-            </div>
-            <div class="terminal-title">@_activeTerminal.Name</div>
-        </header>
-        <div class="terminal-preview" style="flex: 1; overflow-y: auto;">
-            @foreach (var line in _activeTerminal.Lines)
-            {
-                <div style="font-family: monospace;">
-                    <span style="color: #5c7cff;">$</span> <code>@line</code>
-                </div>
-            }
-        </div>
-        <div class="terminal-footer">
-            <span class="pill @_activeTerminal.StatusClass">@_activeTerminal.Status</span>
-            <span class="pill muted">@_activeTerminal.ActivityLabel</span>
-        </div>
-    </article>
-}
-else
-{
-    <div class="empty-state">
-        <div class="empty-icon">💻</div>
-        <p>No active terminals</p>
-        <button class="primary-button" @onclick="CreateTerminalAsync">Create Terminal</button>
-    </div>
-}
-
 @code {
-    private IReadOnlyList<TerminalSnapshot> _terminals = Array.Empty<TerminalSnapshot>();
-    private TerminalSnapshot? _activeTerminal;
+    private List<Corker.Core.Entities.Agent> Agents = new();
+    private Guid SelectedAgentId = Guid.Empty;
+    private List<string> Logs = new();
 
     protected override async Task OnInitializedAsync()
     {
-        _terminals = await DashboardService.GetTerminalsAsync();
-        if (_terminals.Count > 0)
+        Agents = (await AgentService.GetAgentsAsync()).ToList();
+        if (Agents.Any())
         {
-            _activeTerminal = _terminals[0];
+            SelectedAgentId = Agents.First().Id;
         }
+
+        // Poll for logs or hook up event (simplified for now)
+        AgentService.OnLogReceived += (sender, log) =>
+        {
+            Logs.Add(log);
+            InvokeAsync(StateHasChanged);
+        };
+
+        // Initial fetch
+        var initialLogs = await AgentService.GetLogsAsync();
+        Logs = initialLogs.ToList();
     }
 
-    private void SelectTerminal(TerminalSnapshot terminal)
+    private void SelectAgent(Guid agentId)
     {
-        _activeTerminal = terminal;
+        SelectedAgentId = agentId;
+        // In a real scenario, filter logs by agent ID
     }
 
-    private async Task OpenFileExplorerAsync()
+    private string GetStatusClass(string status)
     {
-        _terminals = await DashboardService.OpenFileExplorerAsync();
-        if (_terminals.Count > 0) _activeTerminal = _terminals[0];
-    }
-
-    private async Task RestoreSessionAsync()
-    {
-        _terminals = await DashboardService.RestoreTerminalSessionAsync();
-        if (_terminals.Count > 0) _activeTerminal = _terminals[0];
-    }
-
-    private async Task CreateTerminalAsync()
-    {
-        _terminals = await DashboardService.CreateTerminalAsync();
-        if (_terminals.Count > 0) _activeTerminal = _terminals[0];
+        return status switch
+        {
+            "Idle" => "status-idle",
+            "Busy" => "status-busy",
+            "Error" => "status-error",
+            _ => "status-unknown"
+        };
     }
 }
+
+<style>
+    .terminal-container {
+        display: flex;
+        flex-direction: column;
+        height: 80vh;
+        border: 1px solid #ccc;
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+    }
+    .tabs {
+        display: flex;
+        background-color: #252526;
+        padding: 0.5rem;
+    }
+    .tab-button {
+        background-color: #2d2d2d;
+        color: #cccccc;
+        border: none;
+        padding: 0.5rem 1rem;
+        margin-right: 2px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .tab-button.active {
+        background-color: #1e1e1e;
+        border-top: 2px solid #007acc;
+    }
+    .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+    .status-idle { background-color: green; }
+    .status-busy { background-color: orange; }
+    .status-error { background-color: red; }
+
+    .terminal-view {
+        flex: 1;
+        padding: 1rem;
+        font-family: 'Consolas', 'Courier New', monospace;
+        overflow-y: auto;
+    }
+    .log-line {
+        white-space: pre-wrap;
+    }
+</style>
