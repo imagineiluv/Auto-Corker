@@ -1,73 +1,72 @@
 using Corker.Core.Interfaces;
-using Corker.Core.Settings;
-using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
 namespace Corker.Infrastructure.Settings;
 
+public class AppSettings
+{
+    public string LlmModelPath { get; set; } = "LFM2-1.2B-Q4_K_M.gguf";
+    public int MaxAgents { get; set; } = 3;
+    public string WorkspacePath { get; set; } = "Workspace";
+    public string VectorDbPath { get; set; } = "VectorDb";
+}
+
 public class YamlSettingsService : ISettingsService
 {
-    private readonly string _settingsPath;
-    private readonly ILogger<YamlSettingsService> _logger;
-    private readonly ISerializer _serializer;
-    private readonly IDeserializer _deserializer;
+    private readonly string _settingsPath = "appsettings.yaml";
+    private AppSettings _currentSettings;
 
-    public YamlSettingsService(ILogger<YamlSettingsService> logger)
+    public YamlSettingsService()
     {
-        _logger = logger;
-        // Default to appsettings.yaml in app data directory
-        _settingsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Corker", "appsettings.yaml");
-
-        // Ensure directory exists
-        var directory = Path.GetDirectoryName(_settingsPath);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        _serializer = new SerializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .Build();
-
-        _deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
-            .Build();
+        _currentSettings = LoadSettings();
     }
 
-    public async Task<AppSettings> LoadAsync()
+    private AppSettings LoadSettings()
     {
         if (!System.IO.File.Exists(_settingsPath))
         {
-            _logger.LogWarning("Settings file not found at {Path}. Creating defaults.", _settingsPath);
             var defaults = new AppSettings();
-            await SaveAsync(defaults);
+            SaveSettings(defaults);
             return defaults;
         }
 
-        try
-        {
-            var yaml = await System.IO.File.ReadAllTextAsync(_settingsPath).ConfigureAwait(false);
-            return _deserializer.Deserialize<AppSettings>(yaml) ?? new AppSettings();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load settings from {Path}", _settingsPath);
-            return new AppSettings();
-        }
+        var yaml = System.IO.File.ReadAllText(_settingsPath);
+        var deserializer = new DeserializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .Build();
+
+        return deserializer.Deserialize<AppSettings>(yaml) ?? new AppSettings();
     }
 
-    public async Task SaveAsync(AppSettings settings)
+    private void SaveSettings(AppSettings settings)
     {
-        try
+        var serializer = new SerializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .Build();
+
+        var yaml = serializer.Serialize(settings);
+        System.IO.File.WriteAllText(_settingsPath, yaml);
+    }
+
+    public T Get<T>(string key)
+    {
+        // Simple reflection-based retrieval for now, strictly for AppSettings properties
+        var prop = typeof(AppSettings).GetProperty(key);
+        if (prop != null)
         {
-            var yaml = _serializer.Serialize(settings);
-            await System.IO.File.WriteAllTextAsync(_settingsPath, yaml).ConfigureAwait(false);
-            _logger.LogInformation("Settings saved to {Path}", _settingsPath);
+            return (T)prop.GetValue(_currentSettings)!;
         }
-        catch (Exception ex)
+        throw new KeyNotFoundException($"Setting '{key}' not found.");
+    }
+
+    public void Set<T>(string key, T value)
+    {
+        var prop = typeof(AppSettings).GetProperty(key);
+        if (prop != null)
         {
-            _logger.LogError(ex, "Failed to save settings to {Path}", _settingsPath);
+            prop.SetValue(_currentSettings, value);
+            SaveSettings(_currentSettings);
         }
     }
 }

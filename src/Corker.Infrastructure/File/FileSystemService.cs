@@ -1,67 +1,79 @@
 using Corker.Core.Interfaces;
-using Microsoft.Extensions.Logging;
 
 namespace Corker.Infrastructure.File;
 
 public class FileSystemService : IFileSystemService
 {
-    private readonly ILogger<FileSystemService> _logger;
+    private readonly string _workspaceRoot;
 
-    public FileSystemService(ILogger<FileSystemService> logger)
+    public FileSystemService(ISettingsService settingsService)
     {
-        _logger = logger;
+        // Default to a 'Workspace' folder in the app's directory if not set
+        _workspaceRoot = Path.GetFullPath(settingsService.Get<string>("WorkspacePath") ?? "Workspace");
+        if (!Directory.Exists(_workspaceRoot))
+        {
+            Directory.CreateDirectory(_workspaceRoot);
+        }
     }
 
-    public async Task WriteFileAsync(string path, string content)
+    private string GetSecurePath(string path)
     {
-        _logger.LogInformation("Writing file to {Path}", path);
-
-        // Security Check: Prevent Path Traversal
-        var fullPath = Path.GetFullPath(path);
-        var currentDir = Directory.GetCurrentDirectory();
-        if (!fullPath.StartsWith(currentDir, StringComparison.OrdinalIgnoreCase))
+        var fullPath = Path.GetFullPath(Path.Combine(_workspaceRoot, path));
+        if (!fullPath.StartsWith(_workspaceRoot, StringComparison.OrdinalIgnoreCase))
         {
-             _logger.LogWarning("Blocked attempt to write outside of workspace: {Path}", path);
-             throw new UnauthorizedAccessException("Cannot write outside of the workspace directory.");
+            throw new UnauthorizedAccessException("Access denied: Path traversal attempt detected.");
         }
-
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        await System.IO.File.WriteAllTextAsync(path, content);
+        return fullPath;
     }
 
-    public async Task<string> ReadFileAsync(string path)
+    public Task WriteFileAsync(string path, string content)
     {
-        _logger.LogInformation("Reading file from {Path}", path);
-        if (!System.IO.File.Exists(path))
+        var securePath = GetSecurePath(path);
+        var dir = Path.GetDirectoryName(securePath);
+        if (!string.IsNullOrEmpty(dir))
         {
-            throw new FileNotFoundException($"File not found: {path}");
+            Directory.CreateDirectory(dir);
         }
-        return await System.IO.File.ReadAllTextAsync(path);
+        return System.IO.File.WriteAllTextAsync(securePath, content);
+    }
+
+    public Task<string> ReadFileAsync(string path)
+    {
+        var securePath = GetSecurePath(path);
+        return System.IO.File.ReadAllTextAsync(securePath);
     }
 
     public Task<bool> FileExistsAsync(string path)
     {
-        return Task.FromResult(System.IO.File.Exists(path));
+        try
+        {
+            var securePath = GetSecurePath(path);
+            return Task.FromResult(System.IO.File.Exists(securePath));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Task.FromResult(false);
+        }
     }
 
     public Task CreateDirectoryAsync(string path)
     {
-        _logger.LogInformation("Creating directory {Path}", path);
-        Directory.CreateDirectory(path);
+        var securePath = GetSecurePath(path);
+        Directory.CreateDirectory(securePath);
         return Task.CompletedTask;
     }
 
     public Task<IEnumerable<string>> ListFilesAsync(string path)
     {
-        if (!Directory.Exists(path))
+        var securePath = GetSecurePath(path);
+        if (!Directory.Exists(securePath))
         {
             return Task.FromResult(Enumerable.Empty<string>());
         }
-        return Task.FromResult(Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories));
+
+        // Return paths relative to workspace root?
+        // For now, returning full paths or relative to input path depends on requirement.
+        // Returning just filenames/paths found.
+        return Task.FromResult(Directory.GetFiles(securePath, "*", SearchOption.AllDirectories).AsEnumerable());
     }
 }

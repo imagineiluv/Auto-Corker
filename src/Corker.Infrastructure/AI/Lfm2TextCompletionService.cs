@@ -1,137 +1,74 @@
 using Corker.Core.Interfaces;
 using LLama;
 using LLama.Common;
-using Microsoft.Extensions.Logging;
-using System.Runtime.CompilerServices;
-using System.Threading;
 
 namespace Corker.Infrastructure.AI;
 
-public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDisposable
+public class Lfm2TextCompletionService : ILLMService, IDisposable
 {
     private readonly string _modelPath;
-    private readonly ILogger<Lfm2TextCompletionService> _logger;
-    private readonly ISettingsService _settingsService;
-    private readonly ModelProvisioningService _provisioningService;
-    private readonly SemaphoreSlim _initLock = new(1, 1);
-    // LLamaSharp components
     private LLamaWeights? _weights;
     private LLamaContext? _context;
     private InteractiveExecutor? _executor;
+    private ChatSession? _session;
 
-    public Lfm2TextCompletionService(string modelPath, ILogger<Lfm2TextCompletionService> logger, ISettingsService settingsService, ModelProvisioningService provisioningService)
+    public Lfm2TextCompletionService(ISettingsService settings)
     {
-        _modelPath = modelPath;
-        _logger = logger;
-        _settingsService = settingsService;
-        _provisioningService = provisioningService;
+        _modelPath = settings.Get<string>("LlmModelPath");
     }
 
-    public string ProviderName => "Local LLM (LLamaSharp)";
-
-    public string ModelPath => _modelPath;
-
-    public bool IsAvailable => System.IO.File.Exists(_modelPath);
-
-    public bool IsInitialized => _executor != null;
-
-    public int MaxTokenTotal => 4096; // LFM2 standard
-
-    public async Task InitializeAsync()
+    private void Initialize()
     {
-        if (IsInitialized) return;
+        if (_weights != null) return;
 
-        await _initLock.WaitAsync();
+        if (!System.IO.File.Exists(_modelPath))
+        {
+             // Graceful failure or informative error
+             throw new FileNotFoundException(
+                 $"Model file not found at '{_modelPath}'. " +
+                 "Please ensure the model is downloaded and the path is correctly set in Settings.");
+        }
+
         try
         {
-            if (IsInitialized) return;
-
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService.InitializeAsync started\n"); } catch { }
-
-            var settings = await _settingsService.LoadAsync().ConfigureAwait(false);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Settings loaded\n"); } catch { }
-
-            NativeLibraryConfigurator.Configure(settings.AIBackend, _logger);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Native library configured\n"); } catch { }
-
-            if (!System.IO.File.Exists(_modelPath))
-            {
-                _logger.LogInformation("Model file not found at {ModelPath}. Attempting to download...", _modelPath);
-                try
-                {
-                    // Download the model from the repository (LFS)
-                    var downloadUrl = "https://github.com/imagineiluv/Auto-Corker/raw/main/LFM2-1.2B-Q4_K_M.gguf";
-                    await _provisioningService.EnsureModelExistsAsync(_modelPath, downloadUrl).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to download model during initialization.");
-                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model download failed: {ex}\n"); } catch { }
-                    return;
-                }
-            }
-
-            if (!System.IO.File.Exists(_modelPath))
-            {
-                _logger.LogWarning("Model file still not found at {ModelPath}. AI features will be disabled.", _modelPath);
-                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model not found: {_modelPath}\n"); } catch { }
-                return;
-            }
-
-            try
-            {
-                var info = new System.IO.FileInfo(_modelPath);
-                System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Loading model from {_modelPath}, Size: {info.Length} bytes\n");
-            }
-            catch { }
-            
             var parameters = new ModelParams(_modelPath)
             {
-                ContextSize = 2048,
-                GpuLayerCount = 99 // Offload all layers to GPU (Metal on Mac)
+                ContextSize = 4096,
+                GpuLayerCount = 20
             };
 
             _weights = LLamaWeights.LoadFromFile(parameters);
             _context = _weights.CreateContext(parameters);
             _executor = new InteractiveExecutor(_context);
-
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService initialized successfully\n"); } catch { }
+            _session = new ChatSession(_executor);
         }
-        finally
+        catch (Exception ex)
         {
-            _initLock.Release();
+            throw new InvalidOperationException($"Failed to initialize LLM: {ex.Message}", ex);
         }
-    }
-
-    // Keep synchronous Initialize for backward compatibility if needed, but delegate to async
-    public void Initialize()
-    {
-        InitializeAsync().GetAwaiter().GetResult();
-    }
-
-    public void Dispose()
-    {
-        _context?.Dispose();
-        _weights?.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     public async Task<string> GenerateTextAsync(string prompt)
     {
-        return await GenerateTextAsync(prompt, CancellationToken.None);
-    }
-
-    public async Task<string> GenerateTextAsync(string prompt, CancellationToken cancellationToken = default)
-    {
-        if (_executor == null)
+        try
         {
-            return "AI Model not loaded.";
+            Initialize();
+        }
+        catch (Exception ex)
+        {
+            return $"System Error: {ex.Message}";
         }
 
-        var inferenceParams = new InferenceParams() { MaxTokens = 256 };
+        if (_executor == null) return "Error: LLM not initialized.";
+
+        var inferenceParams = new InferenceParams()
+        {
+            Temperature = 0.7f,
+            AntiPrompts = new List<string> { "User:" }
+        };
 
         var text = "";
-        await foreach (var token in _executor.InferAsync(prompt, inferenceParams, cancellationToken))
+        await foreach (var token in _executor.InferAsync(prompt, inferenceParams))
         {
             text += token;
         }
@@ -140,8 +77,35 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
 
     public async Task<string> ChatAsync(string systemPrompt, string userMessage)
     {
-        // Simple wrapper around GenerateText for now
-        var prompt = $"{systemPrompt}\nUser: {userMessage}\nAssistant:";
-        return await GenerateTextAsync(prompt);
+        try
+        {
+            Initialize();
+        }
+        catch (Exception ex)
+        {
+            return $"System Error: {ex.Message}";
+        }
+
+        if (_session == null) return "Error: Chat session not initialized.";
+
+        var inferenceParams = new InferenceParams()
+        {
+            Temperature = 0.7f,
+            AntiPrompts = new List<string> { "User:" }
+        };
+
+        var response = "";
+        await foreach (var token in _session.ChatAsync(new HistoryTransform().HistoryToText(_session.History) + "\nUser: " + userMessage + "\nAssistant:", inferenceParams))
+        {
+            response += token;
+        }
+
+        return response;
+    }
+
+    public void Dispose()
+    {
+        _context?.Dispose();
+        _weights?.Dispose();
     }
 }

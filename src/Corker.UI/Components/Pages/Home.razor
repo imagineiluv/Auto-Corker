@@ -1,244 +1,159 @@
 @page "/"
 @using Corker.Core.Entities
-@using Corker.Orchestrator.Models
-@inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@using Corker.Core.Interfaces
+@inject IAgentService AgentService
+@inject ITaskRepository TaskRepository
+@implements IDisposable
 
-<section class="board-header">
-    <div class="board-title">
-        <span class="board-project">autonomous-coding</span>
-        <h1>Kanban Board</h1>
-        <p class="page-subtitle">Track autonomous tasks across planning, execution, and review.</p>
-    </div>
-    <div class="board-actions">
-        <label class="toggle">
-            <input type="checkbox" @bind="_showArchived" />
-            <span>Show archived</span>
-        </label>
-        <button class="ghost-button" type="button" @onclick="ReloadAsync">Filter</button>
-        <button class="primary-button" type="button" @onclick="OpenCreateTaskModal">+ New Task</button>
-    </div>
-</section>
+<PageTitle>Kanban Board</PageTitle>
 
-<section class="kanban-board">
-    @foreach (var column in _columns)
-    {
-        <div class="kanban-column @GetColumnClass(column.Key)"
-             ondragover="event.preventDefault();"
-             @ondrop="() => HandleDrop(column.Key)">
-            <header class="kanban-column-header">
-                <div class="column-title">
-                    <h2>@column.Title</h2>
-                    <span class="column-count-badge">@column.Tasks.Count</span>
-                </div>
-                @if (column.Key == "backlog")
-                {
-                    <div class="column-actions">
-                        <button class="icon-button" type="button" @onclick="OpenCreateTaskModal">+</button>
-                    </div>
-                }
-            </header>
+<h1>Kanban Board</h1>
 
-            @if (column.Tasks.Count == 0)
+<div class="kanban-container">
+    <div class="column">
+        <h3>Backlog</h3>
+        <div class="task-list" ondragover="event.preventDefault();" @ondrop='() => HandleDrop(Corker.Core.Entities.TaskStatus.Pending)'>
+            @foreach (var task in Tasks.Where(t => t.Status == Corker.Core.Entities.TaskStatus.Pending || t.Status == Corker.Core.Entities.TaskStatus.Failed))
             {
-                <div class="empty-state">
-                    <div class="empty-icon">📭</div>
-                    <p>No tasks yet</p>
-                    <span>Add a task to @column.Title</span>
-                </div>
-            }
-            else
-            {
-                @foreach (var task in column.Tasks)
-                {
-                    <article class="task-card" draggable="true" @ondragstart="() => HandleDragStart(task)">
-                        <div class="task-header">
-                            <div class="task-title">@task.Title</div>
-                            <span class="pill @task.StatusClass">@task.StatusLabel</span>
-                        </div>
-                        <p class="task-body">@task.Description</p>
-                        @if (task.Progress > 0 && column.Key == "in-progress")
+                <div class="card task-card mb-2" draggable="true" @ondragstart="() => HandleDragStart(task)">
+                    <div class="card-body">
+                        <h5 class="card-title">@task.Title</h5>
+                        <p class="card-text">@task.Description</p>
+                        @if(task.Status == Corker.Core.Entities.TaskStatus.Failed)
                         {
-                            <div class="task-progress">
-                                <span>Progress</span>
-                                <span>@task.Progress%</span>
-                            </div>
-                            <div class="progress-bar">
-                                <span style="width: @task.Progress%"></span>
-                            </div>
+                            <span class="badge bg-danger">Failed</span>
                         }
-                        <div class="task-footer">
-                            <div class="task-tags">
-                                @foreach (var tag in task.Tags)
-                                {
-                                    <span class="pill muted">@tag</span>
-                                }
-                            </div>
-                            <span class="task-time">@task.TimeLabel</span>
-                        </div>
-                        <div class="task-footer">
-                            <span class="pill">@task.Owner</span>
-                        </div>
-                    </article>
-                }
+                    </div>
+                </div>
             }
         </div>
-    }
-</section>
+    </div>
 
-@if (_showCreateModal)
-{
-    <div class="modal-overlay">
-        <div class="modal-content">
-            <h3>Create New Task</h3>
-            <div class="form-group">
-                <label>Title</label>
-                <input type="text" @bind="_newTaskTitle" placeholder="e.g. Implement Login Page" />
-            </div>
-            <div class="form-group">
-                <label>Description</label>
-                <textarea @bind="_newTaskDescription" placeholder="Detailed requirements..."></textarea>
-            </div>
-            <div class="modal-actions">
-                <button class="ghost-button" @onclick="CloseCreateModal">Cancel</button>
-                <button class="primary-button" @onclick="SubmitNewTaskAsync">Create</button>
-            </div>
+    <div class="column">
+        <h3>In Progress</h3>
+        <div class="task-list" ondragover="event.preventDefault();" @ondrop='() => HandleDrop(Corker.Core.Entities.TaskStatus.InProgress)'>
+            @foreach (var task in Tasks.Where(t => t.Status == Corker.Core.Entities.TaskStatus.InProgress))
+            {
+                <div class="card task-card mb-2" draggable="true" @ondragstart="() => HandleDragStart(task)">
+                    <div class="card-body">
+                        <h5 class="card-title">@task.Title</h5>
+                        <p class="card-text">@task.Description</p>
+                        <span class="badge bg-primary">Active</span>
+                    </div>
+                </div>
+            }
         </div>
     </div>
-}
 
-<style>
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-    }
-    .modal-content {
-        background: #1e1e1e; /* Dark theme default */
-        padding: 2rem;
-        border-radius: 8px;
-        width: 500px;
-        color: white;
-    }
-    .form-group {
-        margin-bottom: 1rem;
-    }
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-    }
-    .form-group input, .form-group textarea {
-        width: 100%;
-        padding: 0.5rem;
-        background: #2d2d2d;
-        border: 1px solid #3d3d3d;
-        color: white;
-        border-radius: 4px;
-    }
-    .modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 1rem;
-        margin-top: 1rem;
-    }
+    <div class="column">
+        <h3>Review</h3>
+        <div class="task-list" ondragover="event.preventDefault();" @ondrop='() => HandleDrop(Corker.Core.Entities.TaskStatus.Review)'>
+            @foreach (var task in Tasks.Where(t => t.Status == Corker.Core.Entities.TaskStatus.Review))
+            {
+                <div class="card task-card mb-2" draggable="true" @ondragstart="() => HandleDragStart(task)">
+                    <div class="card-body">
+                        <h5 class="card-title">@task.Title</h5>
+                        <p class="card-text">@task.Description</p>
+                        <span class="badge bg-warning text-dark">Review</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
 
-    /* Drag & Drop Styles */
-    .task-card[draggable="true"] {
-        cursor: grab;
-    }
-    .task-card[draggable="true"]:active {
-        cursor: grabbing;
-    }
-    .kanban-column {
-        transition: background-color 0.2s;
-    }
-    .kanban-column:hover {
-        background-color: rgba(255, 255, 255, 0.02);
-    }
-</style>
+    <div class="column">
+        <h3>Done</h3>
+        <div class="task-list" ondragover="event.preventDefault();" @ondrop='() => HandleDrop(Corker.Core.Entities.TaskStatus.Done)'>
+            @foreach (var task in Tasks.Where(t => t.Status == Corker.Core.Entities.TaskStatus.Done))
+            {
+                <div class="card task-card mb-2" draggable="true" @ondragstart="() => HandleDragStart(task)">
+                    <div class="card-body">
+                        <h5 class="card-title">@task.Title</h5>
+                        <p class="card-text">@task.Description</p>
+                        <span class="badge bg-success">Done</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<button class="btn btn-primary mt-3" @onclick="CreateNewTask">New Task</button>
 
 @code {
-    private IReadOnlyList<KanbanColumn> _columns = Array.Empty<KanbanColumn>();
-    private bool _showArchived;
-    private TaskCard? _draggedTask;
-    private bool _showCreateModal;
-    private string _newTaskTitle = "";
-    private string _newTaskDescription = "";
+    private List<AgentTask> Tasks = new();
+    private AgentTask? DraggedTask;
 
     protected override async Task OnInitializedAsync()
     {
-        await ReloadAsync();
+        await LoadTasks();
+        AgentService.OnTaskUpdated += HandleTaskUpdate;
     }
 
-    private async Task ReloadAsync()
+    private void HandleTaskUpdate(object? sender, AgentTask task)
     {
-        _columns = await DashboardService.GetKanbanAsync();
-    }
-
-    private void OpenCreateTaskModal()
-    {
-        _newTaskTitle = "";
-        _newTaskDescription = "";
-        _showCreateModal = true;
-    }
-
-    private void CloseCreateModal()
-    {
-        _showCreateModal = false;
-    }
-
-    private async Task SubmitNewTaskAsync()
-    {
-        if (string.IsNullOrWhiteSpace(_newTaskTitle)) return;
-
-        await DashboardService.CreateTaskAsync(_newTaskTitle, _newTaskDescription);
-        _showCreateModal = false;
-        await ReloadAsync();
-    }
-
-    private void HandleDragStart(TaskCard task)
-    {
-        _draggedTask = task;
-    }
-
-    private async Task HandleDrop(string columnKey)
-    {
-        if (_draggedTask == null) return;
-
-        var newStatus = columnKey switch
+        // Simple full reload for safety, optimization possible later
+        InvokeAsync(async () =>
         {
-            "backlog" => Corker.Core.Entities.TaskStatus.Pending,
-            "in-progress" => Corker.Core.Entities.TaskStatus.InProgress,
-            "human-review" => Corker.Core.Entities.TaskStatus.Review,
-            "done" => Corker.Core.Entities.TaskStatus.Done,
-            _ => _draggedTask.Status
-        };
+            await LoadTasks();
+            StateHasChanged();
+        });
+    }
 
-        if (newStatus != _draggedTask.Status)
+    private async Task LoadTasks()
+    {
+        var tasks = await AgentService.GetTasksAsync();
+        Tasks = tasks.ToList();
+    }
+
+    private void HandleDragStart(AgentTask task)
+    {
+        DraggedTask = task;
+    }
+
+    private async Task HandleDrop(Corker.Core.Entities.TaskStatus newStatus)
+    {
+        if (DraggedTask != null)
         {
-            await DashboardService.UpdateTaskStatusAsync(_draggedTask.Id, newStatus);
-            await ReloadAsync();
+            await AgentService.UpdateTaskStatusAsync(DraggedTask.Id, newStatus);
+            DraggedTask = null;
+            // LoadTasks will be called by the event handler
         }
-
-        _draggedTask = null;
     }
 
-    private static string GetColumnClass(string columnKey)
+    private async Task CreateNewTask()
     {
-        return columnKey switch
-        {
-            "backlog" => "planning",
-            "in-progress" => "in-progress",
-            "ai-review" => "ai-review",
-            "human-review" => "human-review",
-            "done" => "done",
-            _ => "planning"
-        };
+        await AgentService.CreateTaskAsync("New Task", "Description here...");
+    }
+
+    public void Dispose()
+    {
+        AgentService.OnTaskUpdated -= HandleTaskUpdate;
     }
 }
+
+<style>
+    .kanban-container {
+        display: flex;
+        gap: 1rem;
+        height: 80vh;
+    }
+    .column {
+        flex: 1;
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        display: flex;
+        flex-direction: column;
+    }
+    .task-list {
+        flex: 1;
+        background-color: #e9ecef;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        overflow-y: auto;
+    }
+    .task-card {
+        cursor: grab;
+    }
+</style>

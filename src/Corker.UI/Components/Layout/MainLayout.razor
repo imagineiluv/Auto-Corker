@@ -1,11 +1,17 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-<div class="app-shell">
-    <aside class="app-sidebar">
+<div class="page">
+    <div class="sidebar">
         <NavMenu />
-    </aside>
+    </div>
 
-    <main class="app-main">
-        @Body
+    <main>
+        <div class="top-row px-4">
+            <a href="https://github.com/phillonc/auto-claude" target="_blank">Auto-Claude Port</a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
     </main>
 </div>
