@@ -14,6 +14,7 @@ public class AgentTask
     public string Description { get; set; } = string.Empty;
     public TaskStatus Status { get; set; } = TaskStatus.Pending;
     public Guid AssignedAgentId { get; set; }
+    public DateTime Created { get; set; } = DateTime.UtcNow;
 }
 
 public enum TaskStatus
@@ -21,7 +22,8 @@ public enum TaskStatus
     Pending,
     InProgress,
     Review,
-    Done
+    Done,
+    Failed
 }
 
 public class Session

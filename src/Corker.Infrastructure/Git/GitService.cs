@@ -77,4 +77,47 @@ public class GitService : IGitService
         // Let's stick to simple branching in Phase 1.
         return Task.CompletedTask;
     }
+
+    public Task<List<string>> GetBranchesAsync()
+    {
+        try
+        {
+            if (!Directory.Exists(Path.Combine(_currentRepoPath, ".git")))
+            {
+                return Task.FromResult(new List<string>());
+            }
+
+            using var repo = new Repository(_currentRepoPath);
+            return Task.FromResult(repo.Branches.Select(b => b.FriendlyName).ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to list branches from {RepoPath}", _currentRepoPath);
+            return Task.FromResult(new List<string>());
+        }
+    }
+
+    public Task<string> GetStatusAsync()
+    {
+        try
+        {
+            if (!Directory.Exists(Path.Combine(_currentRepoPath, ".git")))
+            {
+                return Task.FromResult("Not a git repository");
+            }
+
+            using var repo = new Repository(_currentRepoPath);
+            var status = repo.RetrieveStatus();
+            if (status.IsDirty)
+            {
+                 return Task.FromResult($"Dirty ({status.Count()} changes)");
+            }
+            return Task.FromResult("Clean");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get status from {RepoPath}", _currentRepoPath);
+            return Task.FromResult("Unknown");
+        }
+    }
 }
