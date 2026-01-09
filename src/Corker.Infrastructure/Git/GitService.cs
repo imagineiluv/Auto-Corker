@@ -19,51 +19,83 @@ public class GitService : IGitService
 
     public Task InitAsync(string path)
     {
-        _logger.LogInformation("Initializing git repo at {Path}", path);
-        Repository.Init(path);
-        _currentRepoPath = path;
+        try
+        {
+            _logger.LogInformation("Initializing git repo at {Path}", path);
+            Repository.Init(path);
+            _currentRepoPath = path;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize git repo at {Path}", path);
+            throw; // Re-throw to let the caller handle it or wrap in a custom exception
+        }
         return Task.CompletedTask;
     }
 
     public Task CheckoutBranchAsync(string branchName)
     {
-        _logger.LogInformation("Checking out branch {BranchName} in {RepoPath}", branchName, _currentRepoPath);
-        using var repo = new Repository(_currentRepoPath);
-
-        var branch = repo.Branches[branchName];
-        if (branch == null)
+        try
         {
-            _logger.LogInformation("Branch {BranchName} does not exist, creating it.", branchName);
-            var currentBranch = repo.Head;
-            branch = repo.CreateBranch(branchName);
-        }
+            _logger.LogInformation("Checking out branch {BranchName} in {RepoPath}", branchName, _currentRepoPath);
+            using var repo = new Repository(_currentRepoPath);
 
-        Commands.Checkout(repo, branch);
+            var branch = repo.Branches[branchName];
+            if (branch == null)
+            {
+                _logger.LogInformation("Branch {BranchName} does not exist, creating it.", branchName);
+                // var currentBranch = repo.Head; // Unused
+                branch = repo.CreateBranch(branchName);
+            }
+
+            Commands.Checkout(repo, branch);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to checkout branch {BranchName}", branchName);
+            throw;
+        }
         return Task.CompletedTask;
     }
 
     public Task CloneAsync(string repositoryUrl, string localPath)
     {
-        _logger.LogInformation("Cloning {RepositoryUrl} to {LocalPath}", repositoryUrl, localPath);
-        Repository.Clone(repositoryUrl, localPath);
-        _currentRepoPath = localPath;
+        try
+        {
+            _logger.LogInformation("Cloning {RepositoryUrl} to {LocalPath}", repositoryUrl, localPath);
+            Repository.Clone(repositoryUrl, localPath);
+            _currentRepoPath = localPath;
+        }
+        catch (Exception ex)
+        {
+             _logger.LogError(ex, "Failed to clone {RepositoryUrl}", repositoryUrl);
+             throw;
+        }
         return Task.CompletedTask;
     }
 
     public Task CommitAndPushAsync(string message)
     {
-        _logger.LogInformation("Committing with message: {Message}", message);
-        using var repo = new Repository(_currentRepoPath);
+        try
+        {
+            _logger.LogInformation("Committing with message: {Message}", message);
+            using var repo = new Repository(_currentRepoPath);
 
-        // Stage all
-        Commands.Stage(repo, "*");
+            // Stage all
+            Commands.Stage(repo, "*");
 
-        // Commit
-        var signature = new Signature("Corker Agent", "agent@corker.ai", DateTimeOffset.Now);
-        repo.Commit(message, signature, signature);
+            // Commit
+            var signature = new Signature("Corker Agent", "agent@corker.ai", DateTimeOffset.Now);
+            repo.Commit(message, signature, signature);
 
-        // Push (Simulated for now as it requires credentials)
-        _logger.LogInformation("Pushing changes (Simulated)...");
+            // Push (Simulated for now as it requires credentials)
+            _logger.LogInformation("Pushing changes (Simulated)...");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to commit and push");
+            throw;
+        }
 
         return Task.CompletedTask;
     }
