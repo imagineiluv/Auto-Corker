@@ -3,6 +3,7 @@ using LLama;
 using LLama.Common;
 using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 
 namespace Corker.Infrastructure.AI;
@@ -46,13 +47,13 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
         {
             if (IsInitialized) return;
 
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService.InitializeAsync started\n"); } catch { }
+            _logger.LogInformation("Lfm2TextCompletionService.InitializeAsync started");
 
             var settings = await _settingsService.LoadAsync().ConfigureAwait(false);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Settings loaded\n"); } catch { }
+            _logger.LogInformation("Settings loaded");
 
             NativeLibraryConfigurator.Configure(settings.AIBackend, _logger);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Native library configured\n"); } catch { }
+            _logger.LogInformation("Native library configured");
 
             if (!System.IO.File.Exists(_modelPath))
             {
@@ -66,7 +67,6 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to download model during initialization.");
-                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model download failed: {ex}\n"); } catch { }
                     return;
                 }
             }
@@ -74,16 +74,18 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
             if (!System.IO.File.Exists(_modelPath))
             {
                 _logger.LogWarning("Model file still not found at {ModelPath}. AI features will be disabled.", _modelPath);
-                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model not found: {_modelPath}\n"); } catch { }
                 return;
             }
 
             try
             {
                 var info = new System.IO.FileInfo(_modelPath);
-                System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Loading model from {_modelPath}, Size: {info.Length} bytes\n");
+                _logger.LogInformation("Loading model from {ModelPath}, Size: {Size} bytes", _modelPath, info.Length);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to get model file info");
+            }
             
             var parameters = new ModelParams(_modelPath)
             {
@@ -95,7 +97,7 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
             _context = _weights.CreateContext(parameters);
             _executor = new InteractiveExecutor(_context);
 
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService initialized successfully\n"); } catch { }
+            _logger.LogInformation("Lfm2TextCompletionService initialized successfully");
         }
         finally
         {
@@ -130,12 +132,12 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
 
         var inferenceParams = new InferenceParams() { MaxTokens = 256 };
 
-        var text = "";
+        var textBuilder = new StringBuilder();
         await foreach (var token in _executor.InferAsync(prompt, inferenceParams, cancellationToken))
         {
-            text += token;
+            textBuilder.Append(token);
         }
-        return text;
+        return textBuilder.ToString();
     }
 
     public async Task<string> ChatAsync(string systemPrompt, string userMessage)
