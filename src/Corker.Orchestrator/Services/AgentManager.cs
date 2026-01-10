@@ -2,6 +2,7 @@ using Corker.Core.Entities;
 using Corker.Core.Interfaces;
 using Corker.Orchestrator.Agents;
 using Microsoft.Extensions.Logging;
+using System.Threading;
 
 namespace Corker.Orchestrator.Services;
 
@@ -11,7 +12,9 @@ public class AgentManager : IAgentService
     private readonly PlannerAgent _plannerAgent;
     private readonly CoderAgent _coderAgent;
     private readonly ITaskRepository _repository;
+    private readonly ISettingsService _settingsService;
     private readonly ILogger<AgentManager> _logger;
+    private readonly SemaphoreSlim _concurrencySemaphore = new(1, 1); // Default to 1
 
     public event EventHandler<string>? OnLogReceived;
 
@@ -20,9 +23,11 @@ public class AgentManager : IAgentService
         PlannerAgent plannerAgent,
         CoderAgent coderAgent,
         ITaskRepository repository,
+        ISettingsService settingsService,
         ILogger<AgentManager> logger)
     {
         _llmService = llmService;
+        _settingsService = settingsService;
         _plannerAgent = plannerAgent;
         _coderAgent = coderAgent;
         _repository = repository;
@@ -91,6 +96,17 @@ public class AgentManager : IAgentService
 
     private async Task RunAgentLoopAsync(AgentTask task)
     {
+        // Adjust semaphore based on settings if needed, or just respect current limit
+        var settings = await _settingsService.LoadAsync();
+        // Note: Dynamically resizing semaphore is tricky, for now we stick to a safe limit or re-instantiate if needed.
+        // But simply enforcing a lock ensures we don't run 10 agents at once on local hardware.
+
+        if (!await _concurrencySemaphore.WaitAsync(0))
+        {
+            AddLog($"Queueing task {task.Title} (System busy)...");
+            await _concurrencySemaphore.WaitAsync();
+        }
+
         AddLog($"Starting Agent Loop for task: {task.Title}");
 
         try
@@ -109,13 +125,17 @@ public class AgentManager : IAgentService
             // 3. Review (Mock for now, just mark as Review)
             AddLog("Phase 3: Implementation Complete. Moving to Review.");
 
-            // Update status back on the main thread context if needed, but here we just update memory
-            task.Status = Core.Entities.TaskStatus.Review;
+            await UpdateTaskStatusAsync(task.Id, Core.Entities.TaskStatus.Review);
         }
         catch (Exception ex)
         {
             AddLog($"Error in Agent Loop: {ex.Message}");
             _logger.LogError(ex, "Error in Agent Loop for task {TaskId}", task.Id);
+            await UpdateTaskStatusAsync(task.Id, Core.Entities.TaskStatus.Failed);
+        }
+        finally
+        {
+            _concurrencySemaphore.Release();
         }
     }
 }

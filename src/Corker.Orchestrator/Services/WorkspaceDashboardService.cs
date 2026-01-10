@@ -6,7 +6,7 @@ using TaskStatus = Corker.Core.Entities.TaskStatus;
 
 namespace Corker.Orchestrator.Services;
 
-public class WorkspaceDashboardService
+public class WorkspaceDashboardService : IDisposable
 {
     private readonly IAgentService _agentService;
     private readonly ILLMService _llmService;
@@ -39,6 +39,8 @@ public class WorkspaceDashboardService
     private bool _roadmapShared;
     private bool _seeded;
 
+    public event Action? OnStateChanged;
+
     public WorkspaceDashboardService(
         IAgentService agentService,
         ILLMService llmService,
@@ -53,6 +55,50 @@ public class WorkspaceDashboardService
         _settingsService = settingsService;
         _repository = repository;
         _logger = logger;
+
+        _agentService.OnLogReceived += HandleAgentLog;
+    }
+
+    public void Dispose()
+    {
+        _agentService.OnLogReceived -= HandleAgentLog;
+    }
+
+    private void HandleAgentLog(object? sender, string message)
+    {
+        lock (_terminals)
+        {
+            // Ensure there is at least one terminal
+            if (_terminals.Count == 0)
+            {
+                _terminals.Add(new TerminalSnapshot("Agent Output", "Multi", "Active", "green", new List<string>(), "Just now"));
+            }
+
+            // Update the first terminal (simulating main agent output)
+            var targetIndex = 0;
+            var current = _terminals[targetIndex];
+
+            var newLines = current.Lines.ToList();
+
+            // Format log line with timestamp or prompt char if needed, simplified here
+            newLines.Add(message);
+
+            // Keep buffer manageable
+            if (newLines.Count > 500)
+            {
+                newLines.RemoveAt(0);
+            }
+
+            _terminals[targetIndex] = current with
+            {
+                Lines = newLines,
+                ActivityLabel = "Just now",
+                Status = "Busy",
+                StatusClass = "warning"
+            };
+        }
+
+        OnStateChanged?.Invoke();
     }
 
     public async Task<IReadOnlyList<KanbanColumn>> GetKanbanAsync()
@@ -417,7 +463,10 @@ public class WorkspaceDashboardService
     public async Task<IReadOnlyList<TerminalSnapshot>> GetTerminalsAsync()
     {
         await EnsureSeededAsync();
-        return _terminals.ToList();
+        lock (_terminals)
+        {
+            return _terminals.ToList();
+        }
     }
 
     public async Task<IReadOnlyList<TerminalSnapshot>> OpenFileExplorerAsync()
