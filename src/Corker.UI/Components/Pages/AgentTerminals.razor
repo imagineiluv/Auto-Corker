@@ -1,6 +1,8 @@
 @page "/agent-terminals"
 @using Corker.Orchestrator.Models
+@implements IDisposable
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@inject IJSRuntime JS
 
 <section class="page-header">
     <div>
@@ -64,13 +66,54 @@ else
     private IReadOnlyList<TerminalSnapshot> _terminals = Array.Empty<TerminalSnapshot>();
     private TerminalSnapshot? _activeTerminal;
 
+    private ElementReference _terminalRef;
+
     protected override async Task OnInitializedAsync()
     {
+        DashboardService.OnStateChanged += HandleStateChange;
         _terminals = await DashboardService.GetTerminalsAsync();
         if (_terminals.Count > 0)
         {
             _activeTerminal = _terminals[0];
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_activeTerminal != null)
+        {
+            await ScrollToBottom();
+        }
+    }
+
+    public void Dispose()
+    {
+        DashboardService.OnStateChanged -= HandleStateChange;
+    }
+
+    private async void HandleStateChange()
+    {
+        _terminals = await DashboardService.GetTerminalsAsync();
+        if (_activeTerminal != null && _terminals.Any())
+        {
+             // Try to keep selection or default to first
+             var found = _terminals.FirstOrDefault(t => t.Name == _activeTerminal.Name);
+             _activeTerminal = found ?? _terminals[0];
+        }
+        else if (_terminals.Any())
+        {
+            _activeTerminal = _terminals[0];
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scrollToBottom", _terminalRef);
+        }
+        catch { /* Ignore JS errors during navigation */ }
     }
 
     private void SelectTerminal(TerminalSnapshot terminal)
