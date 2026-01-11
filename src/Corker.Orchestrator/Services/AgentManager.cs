@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Corker.Orchestrator.Services;
 
+using System.Collections.Concurrent;
+
 public class AgentManager : IAgentService
 {
     private readonly ILLMService _llmService;
@@ -12,6 +14,8 @@ public class AgentManager : IAgentService
     private readonly CoderAgent _coderAgent;
     private readonly ITaskRepository _repository;
     private readonly ILogger<AgentManager> _logger;
+    private readonly ConcurrentDictionary<Guid, Task> _runningTasks = new();
+    private readonly object _lock = new();
 
     public event EventHandler<string>? OnLogReceived;
 
@@ -66,8 +70,18 @@ public class AgentManager : IAgentService
         // TRIGGER THE AGENT LOOP
         if (status == Core.Entities.TaskStatus.InProgress)
         {
-            // Run in background so we don't block the UI
-            _ = RunAgentLoopAsync(task);
+            // Run in background so we don't block the UI, but track it
+            lock (_lock)
+            {
+                if (!_runningTasks.ContainsKey(taskId))
+                {
+                    var loopTask = RunAgentLoopAsync(task);
+                    _runningTasks.TryAdd(taskId, loopTask);
+
+                    // Cleanup when done
+                    _ = loopTask.ContinueWith(t => _runningTasks.TryRemove(taskId, out _));
+                }
+            }
         }
     }
 
