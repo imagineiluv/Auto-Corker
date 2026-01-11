@@ -19,26 +19,48 @@ public class GitService : IGitService
 
     public Task InitAsync(string path)
     {
-        _logger.LogInformation("Initializing git repo at {Path}", path);
-        Repository.Init(path);
-        _currentRepoPath = path;
+        try
+        {
+            _logger.LogInformation("Initializing git repo at {Path}", path);
+            Repository.Init(path);
+            _currentRepoPath = path;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize git repository at {Path}", path);
+            throw;
+        }
         return Task.CompletedTask;
     }
 
     public Task CheckoutBranchAsync(string branchName)
     {
-        _logger.LogInformation("Checking out branch {BranchName} in {RepoPath}", branchName, _currentRepoPath);
-        using var repo = new Repository(_currentRepoPath);
-
-        var branch = repo.Branches[branchName];
-        if (branch == null)
+        try
         {
-            _logger.LogInformation("Branch {BranchName} does not exist, creating it.", branchName);
-            var currentBranch = repo.Head;
-            branch = repo.CreateBranch(branchName);
-        }
+            _logger.LogInformation("Checking out branch {BranchName} in {RepoPath}", branchName, _currentRepoPath);
 
-        Commands.Checkout(repo, branch);
+            if (!Repository.IsValid(_currentRepoPath))
+            {
+                throw new InvalidOperationException($"Invalid git repository path: {_currentRepoPath}");
+            }
+
+            using var repo = new Repository(_currentRepoPath);
+
+            var branch = repo.Branches[branchName];
+            if (branch == null)
+            {
+                _logger.LogInformation("Branch {BranchName} does not exist, creating it.", branchName);
+                var currentBranch = repo.Head;
+                branch = repo.CreateBranch(branchName);
+            }
+
+            Commands.Checkout(repo, branch);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to checkout branch {BranchName}", branchName);
+            throw;
+        }
         return Task.CompletedTask;
     }
 
