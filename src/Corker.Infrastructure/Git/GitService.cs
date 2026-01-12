@@ -68,13 +68,58 @@ public class GitService : IGitService
         return Task.CompletedTask;
     }
 
-    public Task CreateWorktreeAsync(string branchName)
+    public async Task CreateWorktreeAsync(string branchName)
     {
         _logger.LogInformation("Creating worktree for branch {BranchName}", branchName);
-        // Worktree implementation using LibGit2Sharp is complex as it's not fully supported in the high-level API yet
-        // or requires raw git commands.
-        // For now, we will simulate worktree by cloning to a sibling directory or just using branches.
-        // Let's stick to simple branching in Phase 1.
-        return Task.CompletedTask;
+
+        // We use direct CLI since LibGit2Sharp lacks high-level worktree support
+        // Store worktrees in a dedicated folder at the same level as the repo to avoid permission issues or nesting
+        var repoName = new DirectoryInfo(_currentRepoPath).Name;
+        var parentDir = Directory.GetParent(_currentRepoPath)?.FullName ?? _currentRepoPath;
+        var worktreePath = Path.Combine(parentDir, $"{repoName}_worktrees", branchName);
+
+        var worktreesDir = Path.GetDirectoryName(worktreePath);
+        if (!Directory.Exists(worktreesDir) && !string.IsNullOrEmpty(worktreesDir))
+        {
+            Directory.CreateDirectory(worktreesDir);
+        }
+
+        // We need a process service here ideally, but since this is infrastructure,
+        // we might call out to the shell carefully.
+        // Given we are in the GitService, using System.Diagnostics.Process directly for 'git'
+        // is standard practice when the library falls short.
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "git",
+            WorkingDirectory = _currentRepoPath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        startInfo.ArgumentList.Add("worktree");
+        startInfo.ArgumentList.Add("add");
+        startInfo.ArgumentList.Add("-b");
+        startInfo.ArgumentList.Add(branchName);
+        startInfo.ArgumentList.Add(worktreePath);
+        startInfo.ArgumentList.Add("HEAD"); // Use HEAD instead of hardcoded master/main
+
+        using var process = new System.Diagnostics.Process();
+        process.StartInfo = startInfo;
+        process.Start();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            var error = await process.StandardError.ReadToEndAsync();
+            _logger.LogError("Failed to create worktree: {Error}", error);
+            throw new InvalidOperationException($"Failed to create worktree: {error}");
+        }
+        else
+        {
+            _logger.LogInformation("Worktree created at {Path}", worktreePath);
+        }
     }
 }

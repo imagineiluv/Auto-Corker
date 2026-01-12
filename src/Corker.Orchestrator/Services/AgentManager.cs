@@ -111,11 +111,16 @@ public class AgentManager : IAgentService
 
             // Update status back on the main thread context if needed, but here we just update memory
             task.Status = Core.Entities.TaskStatus.Review;
+            await _repository.UpdateAsync(task); // Persist the successful state change
         }
         catch (Exception ex)
         {
             AddLog($"Error in Agent Loop: {ex.Message}");
             _logger.LogError(ex, "Error in Agent Loop for task {TaskId}", task.Id);
+
+            // Set to Failed state to allow retry or manual intervention
+            task.Status = Core.Entities.TaskStatus.Failed;
+            await _repository.UpdateAsync(task);
         }
     }
 }
