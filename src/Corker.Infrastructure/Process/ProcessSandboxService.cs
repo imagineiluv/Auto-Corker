@@ -54,6 +54,19 @@ public class ProcessSandboxService : IProcessService
 
             return (process.ExitCode, output.ToString(), error.ToString());
         }
+        catch (TimeoutException)
+        {
+            _logger.LogWarning("Command {Command} timed out, killing process.", command);
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (Exception killEx)
+            {
+                _logger.LogError(killEx, "Failed to kill timed out process {Command}", command);
+            }
+            return (-1, output.ToString(), "Command timed out.");
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to execute command {Command}", command);
