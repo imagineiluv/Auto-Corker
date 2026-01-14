@@ -116,6 +116,10 @@ public class AgentManager : IAgentService
         {
             AddLog($"Error in Agent Loop: {ex.Message}");
             _logger.LogError(ex, "Error in Agent Loop for task {TaskId}", task.Id);
+
+            task.Status = Core.Entities.TaskStatus.Failed;
+            await _repository.UpdateAsync(task);
+            AddLog($"Task {task.Id} marked as Failed.");
         }
     }
 }
