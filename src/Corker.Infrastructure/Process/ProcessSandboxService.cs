@@ -15,7 +15,14 @@ public class ProcessSandboxService : IProcessService
 
     public async Task<(int ExitCode, string Output, string Error)> ExecuteCommandAsync(string command, string arguments, string workingDirectory)
     {
-        _logger.LogInformation("Executing command: {Command} {Arguments} in {WorkingDirectory}", command, arguments, workingDirectory);
+        // Simple heuristic to redact potential secrets (env vars are safer but args can leak too)
+        var redactedArgs = arguments;
+        if (arguments.Contains("token") || arguments.Contains("key") || arguments.Contains("password") || arguments.Contains("secret"))
+        {
+            redactedArgs = "[REDACTED]";
+        }
+
+        _logger.LogInformation("Executing command: {Command} {Arguments} in {WorkingDirectory}", command, redactedArgs, workingDirectory);
 
         var startInfo = new ProcessStartInfo
         {
