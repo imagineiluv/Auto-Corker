@@ -46,13 +46,9 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
         {
             if (IsInitialized) return;
 
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService.InitializeAsync started\n"); } catch { }
-
             var settings = await _settingsService.LoadAsync().ConfigureAwait(false);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Settings loaded\n"); } catch { }
 
             NativeLibraryConfigurator.Configure(settings.AIBackend, _logger);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Native library configured\n"); } catch { }
 
             if (!System.IO.File.Exists(_modelPath))
             {
@@ -66,7 +62,6 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to download model during initialization.");
-                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model download failed: {ex}\n"); } catch { }
                     return;
                 }
             }
@@ -74,17 +69,9 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
             if (!System.IO.File.Exists(_modelPath))
             {
                 _logger.LogWarning("Model file still not found at {ModelPath}. AI features will be disabled.", _modelPath);
-                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model not found: {_modelPath}\n"); } catch { }
                 return;
             }
 
-            try
-            {
-                var info = new System.IO.FileInfo(_modelPath);
-                System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Loading model from {_modelPath}, Size: {info.Length} bytes\n");
-            }
-            catch { }
-            
             var parameters = new ModelParams(_modelPath)
             {
                 ContextSize = 2048,
@@ -94,8 +81,6 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
             _weights = LLamaWeights.LoadFromFile(parameters);
             _context = _weights.CreateContext(parameters);
             _executor = new InteractiveExecutor(_context);
-
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService initialized successfully\n"); } catch { }
         }
         finally
         {
@@ -130,12 +115,12 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
 
         var inferenceParams = new InferenceParams() { MaxTokens = 256 };
 
-        var text = "";
+        var sb = new System.Text.StringBuilder();
         await foreach (var token in _executor.InferAsync(prompt, inferenceParams, cancellationToken))
         {
-            text += token;
+            sb.Append(token);
         }
-        return text;
+        return sb.ToString();
     }
 
     public async Task<string> ChatAsync(string systemPrompt, string userMessage)

@@ -1,4 +1,4 @@
-﻿using Corker.Core.Interfaces;
+using Corker.Core.Interfaces;
 using Corker.Infrastructure.AI;
 using Corker.Infrastructure.Data;
 using Corker.Infrastructure.File;
@@ -23,9 +23,7 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
-		try { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "MauiProgram.CreateMauiApp started\n"); } catch { }
 		var builder = MauiApp.CreateBuilder();
-		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Builder created\n"); } catch { }
 		builder
 			.UseMauiApp<App>()
 			.ConfigureLifecycleEvents(events =>
@@ -44,10 +42,8 @@ public static class MauiProgram
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
 			});
-		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Fonts configured\n"); } catch { }
 
 		builder.Services.AddMauiBlazorWebView();
-		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "BlazorWebView added\n"); } catch { }
 
 		builder.Services.AddSingleton<ModelProvisioningService>();
 		builder.Services.AddSingleton<ILLMService>(serviceProvider =>
@@ -70,7 +66,6 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IFileSystemService, FileSystemService>();
 		builder.Services.AddSingleton<IProcessService, ProcessSandboxService>();
 		builder.Services.AddSingleton<ISettingsService, YamlSettingsService>();
-		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Infrastructure services added\n"); } catch { }
 
 		// Persistence
 		var dbPath = Path.Combine(FileSystem.AppDataDirectory, "corker.db");
@@ -82,7 +77,6 @@ public static class MauiProgram
 				?? Path.Combine(FileSystem.AppDataDirectory, "models", "lfm2.gguf");
 		var memoryStoragePath = Path.Combine(FileSystem.AppDataDirectory, "memory_store");
 		builder.Services.AddCorkerMemory(modelPath, memoryStoragePath);
-		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Memory services added\n"); } catch { }
 
 		// Agents
 		builder.Services.AddSingleton<PlannerAgent>();
@@ -92,16 +86,13 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IAgentService, AgentManager>();
 		builder.Services.AddSingleton<OrchestratorService>();
 		builder.Services.AddSingleton<WorkspaceDashboardService>();
-		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Application services added\n"); } catch { }
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
 		builder.Logging.AddDebug();
 #endif
 
-		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Building app...\n"); } catch { }
 		var app = builder.Build();
-		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "App built successfully\n"); } catch { }
 		return app;
 	}
 }
