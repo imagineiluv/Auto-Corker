@@ -43,7 +43,7 @@ Your task is: {instruction}
 Please provide the code implementation.
 If you need to create or modify a file, use the following format exactly:
 
-**FILE: path/to/file.ext**
+FILE: path/to/file.ext
 ```csharp
 // code content here
 ```
@@ -87,9 +87,9 @@ Provide the full implementation.
     private async Task<(bool Success, string Error)> VerifyBuildAsync()
     {
         // Simple heuristic: Try to find a .sln or .csproj in the root or src
-        // For now, assume 'dotnet build' in the current directory works
         var cwd = Directory.GetCurrentDirectory();
 
+        // Use the secure ProcessService which now handles timeouts
         var result = await _processService.ExecuteCommandAsync("dotnet", "build", cwd);
 
         if (result.ExitCode == 0)
@@ -102,8 +102,13 @@ Provide the full implementation.
 
     private async Task<bool> ParseAndApplyChangesAsync(string response)
     {
-        // Simple regex to find **FILE: path** followed by code block
-        var regex = new Regex(@"\*\*FILE:\s*(.+?)\*\*\s*```\w*\n(.*?)```", RegexOptions.Singleline);
+        // Improved Regex:
+        // 1. Matches "FILE:" or "**FILE:**" or "## FILE:" (case insensitive)
+        // 2. Captures path
+        // 3. Matches code block (any language tag or none)
+        var regex = new Regex(
+            @"(?:\*\*|\#\#)?\s*FILE:\s*(?<path>.+?)(?:\*\*|\n|$)\s*```(?:\w+)?\n(?<content>.*?)```",
+            RegexOptions.Singleline | RegexOptions.IgnoreCase);
 
         var matches = regex.Matches(response);
 
@@ -115,9 +120,10 @@ Provide the full implementation.
 
         foreach (Match match in matches)
         {
-            var filePath = match.Groups[1].Value.Trim();
-            var content = match.Groups[2].Value;
+            var filePath = match.Groups["path"].Value.Trim();
+            var content = match.Groups["content"].Value;
 
+            // Remove internal 'using' if needed or cleanup
             _logger.LogInformation("Writing file: {FilePath}", filePath);
             await _fileSystem.WriteFileAsync(filePath, content);
         }
