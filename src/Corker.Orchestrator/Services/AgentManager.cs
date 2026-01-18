@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Corker.Core.Entities;
 using Corker.Core.Interfaces;
 using Corker.Orchestrator.Agents;
@@ -12,8 +13,10 @@ public class AgentManager : IAgentService
     private readonly CoderAgent _coderAgent;
     private readonly ITaskRepository _repository;
     private readonly ILogger<AgentManager> _logger;
+    private readonly ConcurrentDictionary<Guid, Task> _runningTasks = new();
 
     public event EventHandler<string>? OnLogReceived;
+    public event EventHandler<AgentTask>? OnTaskUpdated;
 
     public AgentManager(
         ILLMService llmService,
@@ -39,7 +42,8 @@ public class AgentManager : IAgentService
         };
 
         await _repository.CreateAsync(task);
-        AddLog($"Created task: {title}");
+        AddLog($"Created task: {task.Title}");
+        OnTaskUpdated?.Invoke(this, task);
         return task;
     }
 
@@ -51,6 +55,7 @@ public class AgentManager : IAgentService
             task.AssignedAgentId = agentId;
             await _repository.UpdateAsync(task);
             AddLog($"Assigned task {taskId} to agent {agentId}");
+            OnTaskUpdated?.Invoke(this, task);
         }
     }
 
@@ -61,13 +66,17 @@ public class AgentManager : IAgentService
 
         task.Status = status;
         await _repository.UpdateAsync(task);
-        AddLog($"Updated task {taskId} status to {status}");
+        AddLog($"Updated task {task.Title} status to {status}");
+        OnTaskUpdated?.Invoke(this, task);
 
         // TRIGGER THE AGENT LOOP
         if (status == Core.Entities.TaskStatus.InProgress)
         {
             // Run in background so we don't block the UI
-            _ = RunAgentLoopAsync(task);
+            // Use ConcurrentDictionary to track if needed, or just fire and forget with logging
+            var runningTask = RunAgentLoopAsync(task);
+            _runningTasks.TryAdd(task.Id, runningTask);
+            _ = runningTask.ContinueWith(t => _runningTasks.TryRemove(task.Id, out _));
         }
     }
 
@@ -111,11 +120,17 @@ public class AgentManager : IAgentService
 
             // Update status back on the main thread context if needed, but here we just update memory
             task.Status = Core.Entities.TaskStatus.Review;
+            await _repository.UpdateAsync(task); // Persist changes!
+            OnTaskUpdated?.Invoke(this, task);   // Notify UI!
         }
         catch (Exception ex)
         {
             AddLog($"Error in Agent Loop: {ex.Message}");
             _logger.LogError(ex, "Error in Agent Loop for task {TaskId}", task.Id);
+
+            task.Status = Core.Entities.TaskStatus.Failed;
+            await _repository.UpdateAsync(task);
+            OnTaskUpdated?.Invoke(this, task);
         }
     }
 }
