@@ -28,6 +28,13 @@ public class GitService : IGitService
     public Task CheckoutBranchAsync(string branchName)
     {
         _logger.LogInformation("Checking out branch {BranchName} in {RepoPath}", branchName, _currentRepoPath);
+
+        if (!Repository.IsValid(_currentRepoPath))
+        {
+             _logger.LogError("Invalid git repository at {Path}", _currentRepoPath);
+             throw new DirectoryNotFoundException($"Git repository not found at {_currentRepoPath}");
+        }
+
         using var repo = new Repository(_currentRepoPath);
 
         var branch = repo.Branches[branchName];
