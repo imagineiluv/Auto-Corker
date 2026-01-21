@@ -27,6 +27,12 @@ public class GitService : IGitService
 
     public Task CheckoutBranchAsync(string branchName)
     {
+        if (!Repository.IsValid(_currentRepoPath))
+        {
+            _logger.LogError("Invalid repository path: {Path}", _currentRepoPath);
+            throw new DirectoryNotFoundException($"Invalid repository path: {_currentRepoPath}");
+        }
+
         _logger.LogInformation("Checking out branch {BranchName} in {RepoPath}", branchName, _currentRepoPath);
         using var repo = new Repository(_currentRepoPath);
 
@@ -52,6 +58,12 @@ public class GitService : IGitService
 
     public Task CommitAndPushAsync(string message)
     {
+        if (!Repository.IsValid(_currentRepoPath))
+        {
+            _logger.LogError("Invalid repository path: {Path}", _currentRepoPath);
+            throw new DirectoryNotFoundException($"Invalid repository path: {_currentRepoPath}");
+        }
+
         _logger.LogInformation("Committing with message: {Message}", message);
         using var repo = new Repository(_currentRepoPath);
 

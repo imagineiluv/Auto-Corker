@@ -726,13 +726,22 @@ public class WorkspaceDashboardService
             await _agentService.UpdateTaskStatusAsync(taskFour.Id, TaskStatus.Done);
         }
 
-        _ideas.AddRange(new List<IdeaCard>
+        var existingIdeas = await _repository.GetIdeasAsync();
+        if (existingIdeas.Count == 0)
         {
-            new(Guid.NewGuid(), "Workspace onboarding", "Feature", "Review", "High", "Guide new users through repo and model setup.", "Craft a guided wizard that checks repo, model, and memory configuration.", "Product", "warning"),
-            new(Guid.NewGuid(), "Memory layer preview", "Research", "Draft", "Medium", "Expose memory sources and embed status at a glance.", "Create a single panel that summarizes memory health, recent searches, and cache utilization.", "Research", "purple"),
-            new(Guid.NewGuid(), "Agent accountability", "Ops", "Review", "High", "Show responsible agent per task phase.", "Surface assignment metadata on cards, review panels, and logs.", "Operations", "warning"),
-            new(Guid.NewGuid(), "Issue triage playbook", "Fix", "Converted", "Low", "Automatically classify GitHub issues by severity.", "Use the issue list to propose severity tags and ownership.", "Claude", "green")
-        });
+            var seedIdeas = new List<Idea>
+            {
+                new() { Title = "Workspace onboarding", Type = "Feature", Status = "Review", Impact = "High", Summary = "Guide new users through repo and model setup.", Description = "Craft a guided wizard that checks repo, model, and memory configuration.", Owner = "Product" },
+                new() { Title = "Memory layer preview", Type = "Research", Status = "Draft", Impact = "Medium", Summary = "Expose memory sources and embed status at a glance.", Description = "Create a single panel that summarizes memory health, recent searches, and cache utilization.", Owner = "Research" },
+                new() { Title = "Agent accountability", Type = "Ops", Status = "Review", Impact = "High", Summary = "Show responsible agent per task phase.", Description = "Surface assignment metadata on cards, review panels, and logs.", Owner = "Operations" },
+                new() { Title = "Issue triage playbook", Type = "Fix", Status = "Converted", Impact = "Low", Summary = "Automatically classify GitHub issues by severity.", Description = "Use the issue list to propose severity tags and ownership.", Owner = "Claude" }
+            };
+
+            foreach (var idea in seedIdeas)
+            {
+                await _repository.CreateIdeaAsync(idea);
+            }
+        }
 
         _issues.AddRange(new List<IssueItem>
         {

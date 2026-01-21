@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Corker.Core.Entities;
 using Corker.Core.Interfaces;
 using Corker.Orchestrator.Agents;
@@ -12,6 +13,8 @@ public class AgentManager : IAgentService
     private readonly CoderAgent _coderAgent;
     private readonly ITaskRepository _repository;
     private readonly ILogger<AgentManager> _logger;
+    private readonly ConcurrentDictionary<Guid, Task> _runningTasks = new();
+    private readonly object _lock = new();
 
     public event EventHandler<string>? OnLogReceived;
 
@@ -66,8 +69,18 @@ public class AgentManager : IAgentService
         // TRIGGER THE AGENT LOOP
         if (status == Core.Entities.TaskStatus.InProgress)
         {
-            // Run in background so we don't block the UI
-            _ = RunAgentLoopAsync(task);
+            lock (_lock)
+            {
+                if (_runningTasks.ContainsKey(taskId))
+                {
+                    _logger.LogWarning("Task {TaskId} is already running.", taskId);
+                    return;
+                }
+
+                // Run in background so we don't block the UI
+                var backgroundTask = RunAgentLoopAsync(task);
+                _runningTasks.TryAdd(taskId, backgroundTask);
+            }
         }
     }
 
@@ -111,11 +124,20 @@ public class AgentManager : IAgentService
 
             // Update status back on the main thread context if needed, but here we just update memory
             task.Status = Core.Entities.TaskStatus.Review;
+            await _repository.UpdateAsync(task);
+            AddLog($"Task {task.Id} moved to Review.");
         }
         catch (Exception ex)
         {
             AddLog($"Error in Agent Loop: {ex.Message}");
             _logger.LogError(ex, "Error in Agent Loop for task {TaskId}", task.Id);
+
+            task.Status = Core.Entities.TaskStatus.Failed;
+            await _repository.UpdateAsync(task);
+        }
+        finally
+        {
+            _runningTasks.TryRemove(task.Id, out _);
         }
     }
 }
