@@ -24,7 +24,14 @@
     </div>
 
     <script src="_framework/blazor.webview.js" autostart="false"></script>
-
+    <script>
+        window.scrollToBottom = (elementId) => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.scrollTop = element.scrollHeight;
+            }
+        };
+    </script>
 </body>
 
 </html>

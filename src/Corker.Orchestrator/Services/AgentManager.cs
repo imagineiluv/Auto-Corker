@@ -109,13 +109,16 @@ public class AgentManager : IAgentService
             // 3. Review (Mock for now, just mark as Review)
             AddLog("Phase 3: Implementation Complete. Moving to Review.");
 
-            // Update status back on the main thread context if needed, but here we just update memory
             task.Status = Core.Entities.TaskStatus.Review;
+            await _repository.UpdateAsync(task);
         }
         catch (Exception ex)
         {
             AddLog($"Error in Agent Loop: {ex.Message}");
             _logger.LogError(ex, "Error in Agent Loop for task {TaskId}", task.Id);
+
+            task.Status = Core.Entities.TaskStatus.Failed;
+            await _repository.UpdateAsync(task);
         }
     }
 }
