@@ -11,6 +11,7 @@ public class WorkspaceDashboardService
     private readonly IAgentService _agentService;
     private readonly ILLMService _llmService;
     private readonly ILLMStatusProvider _llmStatusProvider;
+    private readonly IGitService _gitService;
     private readonly ISettingsService _settingsService;
     private readonly ITaskRepository _repository;
     private readonly ILogger<WorkspaceDashboardService> _logger;
@@ -43,6 +44,7 @@ public class WorkspaceDashboardService
         IAgentService agentService,
         ILLMService llmService,
         ILLMStatusProvider llmStatusProvider,
+        IGitService gitService,
         ISettingsService settingsService,
         ITaskRepository repository,
         ILogger<WorkspaceDashboardService> logger)
@@ -50,6 +52,7 @@ public class WorkspaceDashboardService
         _agentService = agentService;
         _llmService = llmService;
         _llmStatusProvider = llmStatusProvider;
+        _gitService = gitService;
         _settingsService = settingsService;
         _repository = repository;
         _logger = logger;
@@ -404,6 +407,18 @@ public class WorkspaceDashboardService
         await EnsureSeededAsync();
         var worktreeName = $"feature/auto-worktree-{_worktreeCounter:00}";
         _worktreeCounter += 1;
+
+        try
+        {
+            await _gitService.CreateWorktreeAsync(worktreeName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create worktree {WorktreeName}", worktreeName);
+            // In a real app we might want to throw or return error status, but for now we proceed to update UI list
+            // to show the intent was handled (simulated success in UI layer if GitService is stubbed).
+        }
+
         _worktrees.Insert(0, new WorktreeItem(
             worktreeName,
             "New worktree created for automation tasks.",

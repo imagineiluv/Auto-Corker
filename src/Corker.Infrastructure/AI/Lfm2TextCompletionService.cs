@@ -35,7 +35,7 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
 
     public bool IsInitialized => _executor != null;
 
-    public int MaxTokenTotal => 4096; // LFM2 standard
+    public int MaxTokenTotal => 2048; // LFM2 standard
 
     public async Task InitializeAsync()
     {
@@ -46,13 +46,17 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
         {
             if (IsInitialized) return;
 
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService.InitializeAsync started\n"); } catch { }
-
             var settings = await _settingsService.LoadAsync().ConfigureAwait(false);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Settings loaded\n"); } catch { }
 
-            NativeLibraryConfigurator.Configure(settings.AIBackend, _logger);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Native library configured\n"); } catch { }
+            // Configure native library (e.g., CUDA, Metal)
+            try
+            {
+                NativeLibraryConfigurator.Configure(settings.AIBackend, _logger);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to configure native library. Falling back to default.");
+            }
 
             if (!System.IO.File.Exists(_modelPath))
             {
@@ -66,7 +70,6 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to download model during initialization.");
-                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model download failed: {ex}\n"); } catch { }
                     return;
                 }
             }
@@ -74,28 +77,18 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
             if (!System.IO.File.Exists(_modelPath))
             {
                 _logger.LogWarning("Model file still not found at {ModelPath}. AI features will be disabled.", _modelPath);
-                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model not found: {_modelPath}\n"); } catch { }
                 return;
             }
 
-            try
-            {
-                var info = new System.IO.FileInfo(_modelPath);
-                System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Loading model from {_modelPath}, Size: {info.Length} bytes\n");
-            }
-            catch { }
-            
             var parameters = new ModelParams(_modelPath)
             {
-                ContextSize = 2048,
+                ContextSize = (uint)MaxTokenTotal,
                 GpuLayerCount = 99 // Offload all layers to GPU (Metal on Mac)
             };
 
             _weights = LLamaWeights.LoadFromFile(parameters);
             _context = _weights.CreateContext(parameters);
             _executor = new InteractiveExecutor(_context);
-
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService initialized successfully\n"); } catch { }
         }
         finally
         {
@@ -128,14 +121,18 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
             return "AI Model not loaded.";
         }
 
-        var inferenceParams = new InferenceParams() { MaxTokens = 256 };
+        var inferenceParams = new InferenceParams()
+        {
+            MaxTokens = 2048,
+            AntiPrompts = new List<string> { "User:", "Assistant:" }
+        };
 
-        var text = "";
+        var text = new System.Text.StringBuilder();
         await foreach (var token in _executor.InferAsync(prompt, inferenceParams, cancellationToken))
         {
-            text += token;
+            text.Append(token);
         }
-        return text;
+        return text.ToString();
     }
 
     public async Task<string> ChatAsync(string systemPrompt, string userMessage)
