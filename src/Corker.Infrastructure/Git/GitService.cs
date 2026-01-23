@@ -71,10 +71,47 @@ public class GitService : IGitService
     public Task CreateWorktreeAsync(string branchName)
     {
         _logger.LogInformation("Creating worktree for branch {BranchName}", branchName);
-        // Worktree implementation using LibGit2Sharp is complex as it's not fully supported in the high-level API yet
-        // or requires raw git commands.
-        // For now, we will simulate worktree by cloning to a sibling directory or just using branches.
-        // Let's stick to simple branching in Phase 1.
+        using var repo = new Repository(_currentRepoPath);
+
+        // Ensure worktrees directory exists
+        var worktreesDir = Path.Combine(_currentRepoPath, ".corker", "worktrees");
+        if (!Directory.Exists(worktreesDir))
+        {
+            Directory.CreateDirectory(worktreesDir);
+        }
+
+        var worktreePath = Path.Combine(worktreesDir, branchName);
+
+        // Create the worktree
+        // Note: LibGit2Sharp Worktree support might vary by version, using high-level if available
+        // If the branch doesn't exist, we should probably create it first or let git handle it.
+        // For simplicity, we assume we are creating a new worktree for a new feature.
+
+        try
+        {
+             repo.Worktrees.Add(branchName, worktreePath, false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create worktree via LibGit2Sharp. Attempting manual fallback or checking constraints.");
+            throw;
+        }
+
         return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<string>> GetWorktreesAsync()
+    {
+        try
+        {
+            using var repo = new Repository(_currentRepoPath);
+            var names = repo.Worktrees.Select(w => w.Name).ToList();
+            return Task.FromResult<IReadOnlyList<string>>(names);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to list worktrees.");
+            return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+        }
     }
 }

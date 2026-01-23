@@ -9,6 +9,7 @@ namespace Corker.Orchestrator.Services;
 public class WorkspaceDashboardService
 {
     private readonly IAgentService _agentService;
+    private readonly IGitService _gitService;
     private readonly ILLMService _llmService;
     private readonly ILLMStatusProvider _llmStatusProvider;
     private readonly ISettingsService _settingsService;
@@ -41,6 +42,7 @@ public class WorkspaceDashboardService
 
     public WorkspaceDashboardService(
         IAgentService agentService,
+        IGitService gitService,
         ILLMService llmService,
         ILLMStatusProvider llmStatusProvider,
         ISettingsService settingsService,
@@ -48,6 +50,7 @@ public class WorkspaceDashboardService
         ILogger<WorkspaceDashboardService> logger)
     {
         _agentService = agentService;
+        _gitService = gitService;
         _llmService = llmService;
         _llmStatusProvider = llmStatusProvider;
         _settingsService = settingsService;
@@ -388,30 +391,41 @@ public class WorkspaceDashboardService
 
     public async Task<IReadOnlyList<WorktreeItem>> GetWorktreesAsync()
     {
-        await EnsureSeededAsync();
-        return _worktrees.ToList();
+        // Use real git service
+        var names = await _gitService.GetWorktreesAsync();
+        var items = names.Select(name => new WorktreeItem(
+            name,
+            "Active worktree",
+            "Active",
+            "green",
+            "Synced",
+            "Ready")).ToList();
+
+        return items;
     }
 
     public async Task<IReadOnlyList<WorktreeItem>> CleanupWorktreesAsync()
     {
         await EnsureSeededAsync();
-        _worktrees.RemoveAll(worktree => worktree.Status.Equals("Stale", StringComparison.OrdinalIgnoreCase));
-        return _worktrees.ToList();
+        // TODO: Implement real cleanup in GitService
+        return await GetWorktreesAsync();
     }
 
     public async Task<IReadOnlyList<WorktreeItem>> CreateWorktreeAsync()
     {
-        await EnsureSeededAsync();
         var worktreeName = $"feature/auto-worktree-{_worktreeCounter:00}";
         _worktreeCounter += 1;
-        _worktrees.Insert(0, new WorktreeItem(
-            worktreeName,
-            "New worktree created for automation tasks.",
-            "Active",
-            "green",
-            "Updated just now",
-            "0 tasks"));
-        return _worktrees.ToList();
+
+        try
+        {
+            await _gitService.CreateWorktreeAsync(worktreeName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create worktree");
+        }
+
+        return await GetWorktreesAsync();
     }
 
     public async Task<IReadOnlyList<TerminalSnapshot>> GetTerminalsAsync()
