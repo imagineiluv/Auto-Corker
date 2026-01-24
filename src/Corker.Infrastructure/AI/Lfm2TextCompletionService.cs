@@ -46,13 +46,9 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
         {
             if (IsInitialized) return;
 
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService.InitializeAsync started\n"); } catch { }
-
             var settings = await _settingsService.LoadAsync().ConfigureAwait(false);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Settings loaded\n"); } catch { }
 
             NativeLibraryConfigurator.Configure(settings.AIBackend, _logger);
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Native library configured\n"); } catch { }
 
             if (!System.IO.File.Exists(_modelPath))
             {
@@ -60,13 +56,16 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
                 try
                 {
                     // Download the model from the repository (LFS)
-                    var downloadUrl = "https://github.com/imagineiluv/Auto-Corker/raw/main/LFM2-1.2B-Q4_K_M.gguf";
+                    var downloadUrl = settings.ModelDownloadUrl;
+                    if (string.IsNullOrEmpty(downloadUrl))
+                    {
+                        downloadUrl = "https://github.com/imagineiluv/Auto-Corker/raw/main/LFM2-1.2B-Q4_K_M.gguf";
+                    }
                     await _provisioningService.EnsureModelExistsAsync(_modelPath, downloadUrl).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to download model during initialization.");
-                    try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model download failed: {ex}\n"); } catch { }
                     return;
                 }
             }
@@ -74,28 +73,18 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
             if (!System.IO.File.Exists(_modelPath))
             {
                 _logger.LogWarning("Model file still not found at {ModelPath}. AI features will be disabled.", _modelPath);
-                try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Model not found: {_modelPath}\n"); } catch { }
                 return;
             }
-
-            try
-            {
-                var info = new System.IO.FileInfo(_modelPath);
-                System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), $"Loading model from {_modelPath}, Size: {info.Length} bytes\n");
-            }
-            catch { }
             
             var parameters = new ModelParams(_modelPath)
             {
-                ContextSize = 2048,
+                ContextSize = (uint)settings.ContextWindow,
                 GpuLayerCount = 99 // Offload all layers to GPU (Metal on Mac)
             };
 
             _weights = LLamaWeights.LoadFromFile(parameters);
             _context = _weights.CreateContext(parameters);
             _executor = new InteractiveExecutor(_context);
-
-            try { System.IO.File.AppendAllText(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_log.txt"), "Lfm2TextCompletionService initialized successfully\n"); } catch { }
         }
         finally
         {
@@ -128,7 +117,7 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
             return "AI Model not loaded.";
         }
 
-        var inferenceParams = new InferenceParams() { MaxTokens = 256 };
+        var inferenceParams = new InferenceParams() { MaxTokens = 1024, AntiPrompts = new List<string> { "User:" } };
 
         var text = "";
         await foreach (var token in _executor.InferAsync(prompt, inferenceParams, cancellationToken))
