@@ -7,6 +7,7 @@
 @inject Corker.Core.Interfaces.ISettingsService SettingsService
 @inject Corker.Core.Interfaces.ILLMStatusProvider LlmStatusProvider
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 
 <section class="page-header">
     <div>
@@ -252,34 +253,36 @@
     private async Task LoadSettingsAsync()
     {
         _sections = await DashboardService.GetSettingsAsync();
+        _appSettings = await SettingsService.LoadAsync();
+        SyncUiFromSettings();
+    }
+
+    private void SyncUiFromSettings()
+    {
+        _themeLabel = _appSettings.Theme;
+        _autoUpdatesLabel = _appSettings.AutoUpdates ? "Enabled" : "Paused";
+        _autoUpdatesClass = _appSettings.AutoUpdates ? "green" : "muted";
+        _reviewAlertsLabel = _appSettings.ReviewAlerts ? "Enabled" : "Muted";
+        _reviewAlertsClass = _appSettings.ReviewAlerts ? "green" : string.Empty;
+        _failureAlertsLabel = _appSettings.FailureAlerts ? "Enabled" : "Muted";
+        _failureAlertsClass = _appSettings.FailureAlerts ? "green" : string.Empty;
     }
 
     private async Task ResetAsync()
     {
-        _sections = await DashboardService.GetSettingsAsync();
+        await LoadSettingsAsync();
         _saveLabel = "Save";
         _resetLabel = "Reset";
-        _themeLabel = "Dark";
-        _autoUpdatesLabel = "Enabled";
-        _autoUpdatesClass = "green";
-        _gitHubStatusLabel = "Connected";
-        _gitHubStatusClass = "green";
-        _gitLabStatusLabel = "Not connected";
-        _gitLabStatusClass = string.Empty;
-        _reviewAlertsLabel = "Enabled";
-        _reviewAlertsClass = "green";
-        _failureAlertsLabel = "Muted";
-        _failureAlertsClass = string.Empty;
     }
 
-    private Task SaveAsync()
+    private async Task SaveAsync()
     {
+        await SettingsService.SaveAsync(_appSettings);
         _saveLabel = "Saved";
         _resetLabel = "Reset";
-        return Task.CompletedTask;
     }
 
-    private void HandleSettingAction(string sectionTitle, SettingsItem item)
+    private async Task HandleSettingAction(string sectionTitle, SettingsItem item)
     {
         if (sectionTitle == "Model" && item.Label == "Provider")
         {
@@ -289,30 +292,42 @@
 
         if (sectionTitle == "Model" && item.Label == "Model Path")
         {
-            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = "/models/corker.gguf", ValueClass = "muted" });
+            var newPath = await JSRuntime.InvokeAsync<string>("prompt", "Enter absolute path to GGUF model:", _appSettings.ModelPath);
+            if (!string.IsNullOrWhiteSpace(newPath))
+            {
+                _appSettings.ModelPath = newPath;
+                UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = _appSettings.ModelPath, ValueClass = "muted" });
+            }
             return;
         }
 
         if (sectionTitle == "Model" && item.Label == "Context Window")
         {
-            var updatedValue = item.Value == "4096" ? "8192" : "4096";
-            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = updatedValue, ValueClass = "muted" });
+            var newVal = item.Value == "4096" ? 8192 : 4096;
+            _appSettings.ContextWindow = newVal;
+            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = newVal.ToString(), ValueClass = "muted" });
             return;
         }
 
         if (sectionTitle == "Project" && item.Label == "Repository Path")
         {
-            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = "/repos/auto-claude", ValueClass = "muted" });
+            var newPath = await JSRuntime.InvokeAsync<string>("prompt", "Enter absolute path to repository:", _appSettings.RepoPath);
+            if (!string.IsNullOrWhiteSpace(newPath))
+            {
+                _appSettings.RepoPath = newPath;
+                UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = _appSettings.RepoPath, ValueClass = "muted" });
+            }
             return;
         }
 
         if (sectionTitle == "Project" && item.Label == "Auto Sync")
         {
             var enabled = item.Value == "Enabled";
+            _appSettings.AutoSync = !enabled;
             UpdateSettingItem(sectionTitle, item.Label, current => current with
             {
-                Value = enabled ? "Paused" : "Enabled",
-                ValueClass = enabled ? "muted" : "green"
+                Value = !enabled ? "Enabled" : "Paused",
+                ValueClass = !enabled ? "green" : "muted"
             });
             return;
         }
@@ -320,18 +335,21 @@
         if (sectionTitle == "Agents" && item.Label == "Validation Mode")
         {
             var sandboxed = item.Value == "Sandboxed";
+            _appSettings.Sandboxed = !sandboxed;
             UpdateSettingItem(sectionTitle, item.Label, current => current with
             {
-                Value = sandboxed ? "Permissive" : "Sandboxed",
-                ValueClass = sandboxed ? "muted" : "warning"
+                Value = !sandboxed ? "Sandboxed" : "Permissive",
+                ValueClass = !sandboxed ? "warning" : "muted"
             });
             return;
         }
 
         if (sectionTitle == "Agents" && item.Label == "Parallel Tasks")
         {
-            var updatedValue = item.Value.Contains("3") ? "4 max" : "3 max";
-            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = updatedValue, ValueClass = "muted" });
+            var currentMax = int.Parse(item.Value.Split(' ')[0]);
+            var newMax = currentMax == 3 ? 4 : 3;
+            _appSettings.MaxParallelTasks = newMax;
+            UpdateSettingItem(sectionTitle, item.Label, current => current with { Value = $"{newMax} max", ValueClass = "muted" });
         }
     }
 
@@ -351,18 +369,20 @@
 
     private void ToggleTheme()
     {
-        _themeLabel = _themeLabel == "Dark" ? "Light" : "Dark";
+        _appSettings.Theme = _appSettings.Theme == "Dark" ? "Light" : "Dark";
+        _themeLabel = _appSettings.Theme;
     }
 
     private void ToggleAutoUpdates()
     {
-        var enabled = _autoUpdatesLabel == "Enabled";
-        _autoUpdatesLabel = enabled ? "Paused" : "Enabled";
-        _autoUpdatesClass = enabled ? "muted" : "green";
+        _appSettings.AutoUpdates = !_appSettings.AutoUpdates;
+        _autoUpdatesLabel = _appSettings.AutoUpdates ? "Enabled" : "Paused";
+        _autoUpdatesClass = _appSettings.AutoUpdates ? "green" : "muted";
     }
 
     private void ToggleGitHubConnection()
     {
+        // Mock connection toggle
         var connected = _gitHubStatusLabel == "Connected";
         _gitHubStatusLabel = connected ? "Disconnected" : "Connected";
         _gitHubStatusClass = connected ? "warning" : "green";
@@ -370,6 +390,7 @@
 
     private void ToggleGitLabConnection()
     {
+        // Mock connection toggle
         var connected = _gitLabStatusLabel == "Connected";
         _gitLabStatusLabel = connected ? "Not connected" : "Connected";
         _gitLabStatusClass = connected ? string.Empty : "green";
@@ -377,15 +398,15 @@
 
     private void ToggleReviewAlerts()
     {
-        var enabled = _reviewAlertsLabel == "Enabled";
-        _reviewAlertsLabel = enabled ? "Muted" : "Enabled";
-        _reviewAlertsClass = enabled ? string.Empty : "green";
+        _appSettings.ReviewAlerts = !_appSettings.ReviewAlerts;
+        _reviewAlertsLabel = _appSettings.ReviewAlerts ? "Enabled" : "Muted";
+        _reviewAlertsClass = _appSettings.ReviewAlerts ? "green" : string.Empty;
     }
 
     private void ToggleFailureAlerts()
     {
-        var muted = _failureAlertsLabel == "Muted";
-        _failureAlertsLabel = muted ? "Enabled" : "Muted";
-        _failureAlertsClass = muted ? "green" : string.Empty;
+        _appSettings.FailureAlerts = !_appSettings.FailureAlerts;
+        _failureAlertsLabel = _appSettings.FailureAlerts ? "Enabled" : "Muted";
+        _failureAlertsClass = _appSettings.FailureAlerts ? "green" : string.Empty;
     }
 }
