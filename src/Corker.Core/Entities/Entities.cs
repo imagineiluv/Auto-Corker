@@ -21,7 +21,8 @@ public enum TaskStatus
     Pending,
     InProgress,
     Review,
-    Done
+    Done,
+    Failed
 }
 
 public class Session
