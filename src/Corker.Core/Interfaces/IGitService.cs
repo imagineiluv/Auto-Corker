@@ -7,4 +7,5 @@ public interface IGitService
     Task CheckoutBranchAsync(string branchName);
     Task CommitAndPushAsync(string message);
     Task CreateWorktreeAsync(string branchName);
+    Task<List<(string Path, string Head, string Branch)>> GetWorktreesAsync();
 }
