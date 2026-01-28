@@ -13,13 +13,14 @@ public class WorkspaceDashboardService
     private readonly ILLMStatusProvider _llmStatusProvider;
     private readonly ISettingsService _settingsService;
     private readonly ITaskRepository _repository;
+    private readonly IGitService _gitService; // Added
     private readonly ILogger<WorkspaceDashboardService> _logger;
     private readonly List<IdeaCard> _ideas = new();
     private readonly List<IssueItem> _issues = new();
     private readonly List<IssueItem> _gitLabIssues = new();
     private readonly List<PullRequestItem> _pullRequests = new();
     private readonly List<MergeRequestItem> _mergeRequests = new();
-    private readonly List<WorktreeItem> _worktrees = new();
+    private readonly List<WorktreeItem> _worktrees = new(); // Still keep for mock fallback or caching if needed? Let's assume we replace it.
     private readonly List<TerminalSnapshot> _terminals = new();
     private readonly List<ChangelogEntry> _changelog = new();
     private readonly List<AgentToolItem> _agentTools = new();
@@ -45,6 +46,7 @@ public class WorkspaceDashboardService
         ILLMStatusProvider llmStatusProvider,
         ISettingsService settingsService,
         ITaskRepository repository,
+        IGitService gitService, // Added
         ILogger<WorkspaceDashboardService> logger)
     {
         _agentService = agentService;
@@ -52,6 +54,7 @@ public class WorkspaceDashboardService
         _llmStatusProvider = llmStatusProvider;
         _settingsService = settingsService;
         _repository = repository;
+        _gitService = gitService; // Added
         _logger = logger;
     }
 
@@ -388,30 +391,50 @@ public class WorkspaceDashboardService
 
     public async Task<IReadOnlyList<WorktreeItem>> GetWorktreesAsync()
     {
-        await EnsureSeededAsync();
-        return _worktrees.ToList();
+        try
+        {
+            var worktrees = await _gitService.GetWorktreesAsync();
+            if (worktrees.Count == 0)
+            {
+                // Fallback to mock if empty (optional, but let's show real data)
+            }
+
+            return worktrees.Select(wt => new WorktreeItem(
+                wt.Branch,
+                $"Worktree at {wt.Path}",
+                wt.Branch == "detached" ? "Detached" : "Active",
+                wt.Branch == "detached" ? "warning" : "green",
+                "Managed by Git",
+                ""
+            )).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get worktrees");
+            return new List<WorktreeItem> { new WorktreeItem("Error", ex.Message, "Error", "red", "Now", "0") };
+        }
     }
 
     public async Task<IReadOnlyList<WorktreeItem>> CleanupWorktreesAsync()
     {
-        await EnsureSeededAsync();
-        _worktrees.RemoveAll(worktree => worktree.Status.Equals("Stale", StringComparison.OrdinalIgnoreCase));
-        return _worktrees.ToList();
+        // Not implemented real cleanup yet, stick to mock list clear or re-fetch
+        return await GetWorktreesAsync();
     }
 
     public async Task<IReadOnlyList<WorktreeItem>> CreateWorktreeAsync()
     {
-        await EnsureSeededAsync();
-        var worktreeName = $"feature/auto-worktree-{_worktreeCounter:00}";
-        _worktreeCounter += 1;
-        _worktrees.Insert(0, new WorktreeItem(
-            worktreeName,
-            "New worktree created for automation tasks.",
-            "Active",
-            "green",
-            "Updated just now",
-            "0 tasks"));
-        return _worktrees.ToList();
+        try
+        {
+            var worktreeName = $"feature/auto-worktree-{_worktreeCounter:00}";
+            _worktreeCounter += 1;
+            await _gitService.CreateWorktreeAsync(worktreeName);
+            return await GetWorktreesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create worktree");
+            return await GetWorktreesAsync();
+        }
     }
 
     public async Task<IReadOnlyList<TerminalSnapshot>> GetTerminalsAsync()
