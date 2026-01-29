@@ -128,14 +128,18 @@ public class Lfm2TextCompletionService : ILLMService, ILLMStatusProvider, IDispo
             return "AI Model not loaded.";
         }
 
-        var inferenceParams = new InferenceParams() { MaxTokens = 256 };
+        var inferenceParams = new InferenceParams()
+        {
+            MaxTokens = 1024,
+            AntiPrompts = new List<string> { "User:", "Observation:", "System:" }
+        };
 
-        var text = "";
+        var sb = new System.Text.StringBuilder();
         await foreach (var token in _executor.InferAsync(prompt, inferenceParams, cancellationToken))
         {
-            text += token;
+            sb.Append(token);
         }
-        return text;
+        return sb.ToString();
     }
 
     public async Task<string> ChatAsync(string systemPrompt, string userMessage)
