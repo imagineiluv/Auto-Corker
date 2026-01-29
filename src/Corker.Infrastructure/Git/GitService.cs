@@ -2,6 +2,7 @@ using Corker.Core.Interfaces;
 using Corker.Core.Events;
 using LibGit2Sharp;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace Corker.Infrastructure.Git;
 
@@ -68,13 +69,43 @@ public class GitService : IGitService
         return Task.CompletedTask;
     }
 
-    public Task CreateWorktreeAsync(string branchName)
+    public async Task CreateWorktreeAsync(string branchName)
     {
         _logger.LogInformation("Creating worktree for branch {BranchName}", branchName);
-        // Worktree implementation using LibGit2Sharp is complex as it's not fully supported in the high-level API yet
-        // or requires raw git commands.
-        // For now, we will simulate worktree by cloning to a sibling directory or just using branches.
-        // Let's stick to simple branching in Phase 1.
-        return Task.CompletedTask;
+
+        // Create worktree as a sibling directory
+        var parentDir = Directory.GetParent(_currentRepoPath);
+        if (parentDir == null) throw new DirectoryNotFoundException("Cannot create worktree from root directory.");
+
+        var worktreePath = Path.Combine(parentDir.FullName, branchName);
+
+        // git worktree add -b <branch> <path> HEAD
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "git",
+            Arguments = $"worktree add -b {branchName} \"{worktreePath}\" HEAD",
+            WorkingDirectory = _currentRepoPath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new System.Diagnostics.Process { StartInfo = startInfo };
+        process.Start();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            var error = await process.StandardError.ReadToEndAsync();
+            _logger.LogError("Failed to create worktree: {Error}", error);
+            // Don't throw if it already exists/checked out, just log
+            if (!error.Contains("already exists"))
+            {
+                throw new InvalidOperationException($"Failed to create worktree: {error}");
+            }
+        }
+
+        _logger.LogInformation("Worktree created at {Path}", worktreePath);
     }
 }
