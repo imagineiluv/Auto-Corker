@@ -42,3 +42,10 @@ public class Idea
     public string Owner { get; set; } = "Unassigned";
     public string Summary { get; set; } = string.Empty;
 }
+
+public class GitWorktree
+{
+    public string Path { get; set; } = string.Empty;
+    public string Branch { get; set; } = string.Empty;
+    public string Head { get; set; } = string.Empty;
+}

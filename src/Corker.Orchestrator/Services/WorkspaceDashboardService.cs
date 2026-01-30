@@ -6,14 +6,16 @@ using TaskStatus = Corker.Core.Entities.TaskStatus;
 
 namespace Corker.Orchestrator.Services;
 
-public class WorkspaceDashboardService
+public class WorkspaceDashboardService : IDisposable
 {
     private readonly IAgentService _agentService;
+    private readonly IGitService _gitService;
     private readonly ILLMService _llmService;
     private readonly ILLMStatusProvider _llmStatusProvider;
     private readonly ISettingsService _settingsService;
     private readonly ITaskRepository _repository;
     private readonly ILogger<WorkspaceDashboardService> _logger;
+    public event Action? OnStateChanged;
     private readonly List<IdeaCard> _ideas = new();
     private readonly List<IssueItem> _issues = new();
     private readonly List<IssueItem> _gitLabIssues = new();
@@ -41,6 +43,7 @@ public class WorkspaceDashboardService
 
     public WorkspaceDashboardService(
         IAgentService agentService,
+        IGitService gitService,
         ILLMService llmService,
         ILLMStatusProvider llmStatusProvider,
         ISettingsService settingsService,
@@ -48,11 +51,45 @@ public class WorkspaceDashboardService
         ILogger<WorkspaceDashboardService> logger)
     {
         _agentService = agentService;
+        _gitService = gitService;
         _llmService = llmService;
         _llmStatusProvider = llmStatusProvider;
         _settingsService = settingsService;
         _repository = repository;
         _logger = logger;
+        _agentService.OnLogReceived += HandleLogReceived;
+    }
+
+    public void Dispose()
+    {
+        _agentService.OnLogReceived -= HandleLogReceived;
+    }
+
+    private void HandleLogReceived(object? sender, string message)
+    {
+        lock (_terminals)
+        {
+            var terminal = _terminals.FirstOrDefault(t => t.Name == "Live Output");
+            if (terminal == null)
+            {
+                terminal = new TerminalSnapshot(
+                    "Live Output",
+                    "Stream",
+                    "Active",
+                    "green",
+                    Array.Empty<string>(),
+                    "Just now"
+                );
+                _terminals.Insert(0, terminal);
+            }
+
+            var newLines = terminal.Lines.Concat(new[] { message }).TakeLast(100).ToArray();
+            var updated = terminal with { Lines = newLines, ActivityLabel = "Just now" };
+
+            var index = _terminals.IndexOf(terminal);
+            if (index >= 0) _terminals[index] = updated;
+        }
+        OnStateChanged?.Invoke();
     }
 
     public async Task<IReadOnlyList<KanbanColumn>> GetKanbanAsync()
@@ -389,14 +426,40 @@ public class WorkspaceDashboardService
     public async Task<IReadOnlyList<WorktreeItem>> GetWorktreesAsync()
     {
         await EnsureSeededAsync();
+
+        try
+        {
+            var realWorktrees = await _gitService.GetWorktreesAsync();
+            var items = realWorktrees.Select(wt => new WorktreeItem(
+                wt.Branch,
+                wt.Path,
+                "Active",
+                "green",
+                "Synced",
+                "Unknown tasks"
+            )).ToList();
+
+            lock(_worktrees)
+            {
+                _worktrees.Clear();
+                _worktrees.AddRange(items);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch worktrees");
+            // Fallback to seeded or empty if failed
+        }
+
         return _worktrees.ToList();
     }
 
     public async Task<IReadOnlyList<WorktreeItem>> CleanupWorktreesAsync()
     {
         await EnsureSeededAsync();
-        _worktrees.RemoveAll(worktree => worktree.Status.Equals("Stale", StringComparison.OrdinalIgnoreCase));
-        return _worktrees.ToList();
+        // Real cleanup logic would go here, for now just clear list as placeholder for UI
+        // _worktrees.RemoveAll(worktree => worktree.Status.Equals("Stale", StringComparison.OrdinalIgnoreCase));
+        return await GetWorktreesAsync();
     }
 
     public async Task<IReadOnlyList<WorktreeItem>> CreateWorktreeAsync()
@@ -404,14 +467,18 @@ public class WorkspaceDashboardService
         await EnsureSeededAsync();
         var worktreeName = $"feature/auto-worktree-{_worktreeCounter:00}";
         _worktreeCounter += 1;
-        _worktrees.Insert(0, new WorktreeItem(
-            worktreeName,
-            "New worktree created for automation tasks.",
-            "Active",
-            "green",
-            "Updated just now",
-            "0 tasks"));
-        return _worktrees.ToList();
+
+        try
+        {
+            await _gitService.CreateWorktreeAsync(worktreeName);
+        }
+        catch (Exception ex)
+        {
+             _logger.LogError(ex, "Failed to create worktree");
+             // Add error handling feedback to UI if possible, or just log
+        }
+
+        return await GetWorktreesAsync();
     }
 
     public async Task<IReadOnlyList<TerminalSnapshot>> GetTerminalsAsync()

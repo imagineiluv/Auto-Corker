@@ -1,4 +1,5 @@
 ﻿@using Microsoft.AspNetCore.Components
+@inject Corker.Core.Interfaces.ISettingsService SettingsService
 
 <div class="sidebar-header">
     <div class="app-brand">Corker</div>
@@ -11,7 +12,7 @@
         <span class="project-dot"></span>
         autonomous-coding
     </button>
-    <span class="project-path">/Users/yourname/projects/auto-corker</span>
+    <span class="project-path">@(_settings?.RepoPath ?? "Loading...")</span>
 </div>
 
 <nav class="sidebar-nav">
@@ -84,6 +85,13 @@
 </div>
 
 @code {
+    private Corker.Core.Settings.AppSettings? _settings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await SettingsService.LoadAsync();
+    }
+
     private static class Icons
     {
         public const string Kanban = "<svg viewBox='0 0 20 20' fill='currentColor'><path d='M4 3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2V3H4zm6 0H8v14h2V3zm6 0h-2v14h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z'/></svg>";
