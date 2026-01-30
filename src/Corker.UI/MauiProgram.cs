@@ -55,8 +55,12 @@ public static class MauiProgram
 			var logger = serviceProvider.GetRequiredService<ILogger<Lfm2TextCompletionService>>();
 			var settingsService = serviceProvider.GetRequiredService<ISettingsService>();
 			var provisioningService = serviceProvider.GetRequiredService<ModelProvisioningService>();
-			var modelPath = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH")
-				?? Path.Combine(FileSystem.AppDataDirectory, "models", "lfm2.gguf");
+			var envPath = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH");
+			var localPath = Path.Combine(AppContext.BaseDirectory, "models", "lfm2.gguf");
+			var appDataPath = Path.Combine(FileSystem.AppDataDirectory, "models", "lfm2.gguf");
+			var modelPath = !string.IsNullOrEmpty(envPath) ? envPath
+				: (File.Exists(localPath) ? localPath : appDataPath);
+
 			var service = new Lfm2TextCompletionService(modelPath, logger, settingsService, provisioningService);
 			// Initialize asynchronously in background to avoid blocking startup
 			_ = Task.Run(() => service.InitializeAsync());
@@ -78,8 +82,12 @@ public static class MauiProgram
 			new LiteDbTaskRepository(dbPath, sp.GetRequiredService<ILogger<LiteDbTaskRepository>>()));
 
 		// Memory
-		var modelPath = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH")?.Trim()
-				?? Path.Combine(FileSystem.AppDataDirectory, "models", "lfm2.gguf");
+		var envPathMem = Environment.GetEnvironmentVariable("CORKER_LLM_MODEL_PATH")?.Trim();
+		var localPathMem = Path.Combine(AppContext.BaseDirectory, "models", "lfm2.gguf");
+		var appDataPathMem = Path.Combine(FileSystem.AppDataDirectory, "models", "lfm2.gguf");
+		var modelPath = !string.IsNullOrEmpty(envPathMem) ? envPathMem
+				: (File.Exists(localPathMem) ? localPathMem : appDataPathMem);
+
 		var memoryStoragePath = Path.Combine(FileSystem.AppDataDirectory, "memory_store");
 		builder.Services.AddCorkerMemory(modelPath, memoryStoragePath);
 		try { File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup_log.txt"), "Memory services added\n"); } catch { }

@@ -1,6 +1,7 @@
 @page "/agent-terminals"
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@implements IDisposable
 
 <section class="page-header">
     <div>
@@ -66,10 +67,32 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        DashboardService.OnStateChanged += HandleStateChanged;
+        await LoadTerminalsAsync();
+    }
+
+    public void Dispose()
+    {
+        DashboardService.OnStateChanged -= HandleStateChanged;
+    }
+
+    private async void HandleStateChanged()
+    {
+        await LoadTerminalsAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadTerminalsAsync()
+    {
         _terminals = await DashboardService.GetTerminalsAsync();
-        if (_terminals.Count > 0)
+        // Keep active terminal selected if possible
+        if (_activeTerminal == null && _terminals.Count > 0)
         {
             _activeTerminal = _terminals[0];
+        }
+        else if (_activeTerminal != null)
+        {
+            _activeTerminal = _terminals.FirstOrDefault(t => t.Name == _activeTerminal.Name) ?? _terminals.FirstOrDefault();
         }
     }
 

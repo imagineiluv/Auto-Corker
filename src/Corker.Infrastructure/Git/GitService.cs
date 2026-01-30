@@ -1,7 +1,9 @@
 using Corker.Core.Interfaces;
+using Corker.Core.Entities;
 using Corker.Core.Events;
 using LibGit2Sharp;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace Corker.Infrastructure.Git;
 
@@ -68,13 +70,86 @@ public class GitService : IGitService
         return Task.CompletedTask;
     }
 
-    public Task CreateWorktreeAsync(string branchName)
+    public async Task CreateWorktreeAsync(string branchName)
     {
+        if (string.IsNullOrWhiteSpace(branchName) || branchName.Contains("..") || branchName.Intersect(Path.GetInvalidFileNameChars()).Any())
+        {
+             throw new ArgumentException($"Invalid branch name: {branchName}");
+        }
+
         _logger.LogInformation("Creating worktree for branch {BranchName}", branchName);
-        // Worktree implementation using LibGit2Sharp is complex as it's not fully supported in the high-level API yet
-        // or requires raw git commands.
-        // For now, we will simulate worktree by cloning to a sibling directory or just using branches.
-        // Let's stick to simple branching in Phase 1.
-        return Task.CompletedTask;
+
+        var parentDir = Directory.GetParent(_currentRepoPath)?.FullName;
+        if (parentDir == null) throw new DirectoryNotFoundException("Cannot determine parent directory for worktrees.");
+
+        var worktreesDir = Path.Combine(parentDir, "worktrees");
+        Directory.CreateDirectory(worktreesDir);
+        var targetPath = Path.Combine(worktreesDir, branchName);
+
+        // Uses System.Diagnostics.Process to call git directly
+        var psi = new ProcessStartInfo("git", $"worktree add -b {branchName} \"{targetPath}\" HEAD")
+        {
+            WorkingDirectory = _currentRepoPath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = System.Diagnostics.Process.Start(psi);
+        if (process == null) throw new InvalidOperationException("Failed to start git process.");
+
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+             var error = await process.StandardError.ReadToEndAsync();
+             _logger.LogError("Failed to create worktree: {Error}", error);
+             throw new InvalidOperationException($"Git worktree add failed: {error}");
+        }
+    }
+
+    public async Task<IReadOnlyList<GitWorktree>> GetWorktreesAsync()
+    {
+        var psi = new ProcessStartInfo("git", "worktree list --porcelain")
+        {
+            WorkingDirectory = _currentRepoPath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = System.Diagnostics.Process.Start(psi);
+        if (process == null) return new List<GitWorktree>();
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+             return new List<GitWorktree>();
+        }
+
+        var worktrees = new List<GitWorktree>();
+        var lines = output.Split('\n');
+        var current = new GitWorktree();
+
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                if (!string.IsNullOrEmpty(current.Path)) worktrees.Add(current);
+                current = new GitWorktree();
+                continue;
+            }
+
+            if (line.StartsWith("worktree ")) current.Path = line.Substring(9).Trim();
+            else if (line.StartsWith("branch ")) current.Branch = line.Substring(7).Trim().Replace("refs/heads/", "");
+            else if (line.StartsWith("HEAD ")) current.Head = line.Substring(5).Trim();
+        }
+        if (!string.IsNullOrEmpty(current.Path)) worktrees.Add(current);
+
+        return worktrees;
     }
 }

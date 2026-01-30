@@ -1,3 +1,5 @@
+using Corker.Core.Entities;
+
 namespace Corker.Core.Interfaces;
 
 public interface IGitService
@@ -7,4 +9,5 @@ public interface IGitService
     Task CheckoutBranchAsync(string branchName);
     Task CommitAndPushAsync(string message);
     Task CreateWorktreeAsync(string branchName);
+    Task<IReadOnlyList<GitWorktree>> GetWorktreesAsync();
 }
