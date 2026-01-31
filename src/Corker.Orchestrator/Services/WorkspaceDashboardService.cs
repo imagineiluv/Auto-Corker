@@ -39,6 +39,8 @@ public class WorkspaceDashboardService
     private bool _roadmapShared;
     private bool _seeded;
 
+    public event EventHandler? OnStateChanged;
+
     public WorkspaceDashboardService(
         IAgentService agentService,
         ILLMService llmService,
@@ -53,6 +55,8 @@ public class WorkspaceDashboardService
         _settingsService = settingsService;
         _repository = repository;
         _logger = logger;
+
+        _agentService.OnTaskUpdated += (sender, task) => NotifyStateChanged();
     }
 
     public async Task<IReadOnlyList<KanbanColumn>> GetKanbanAsync()
@@ -435,6 +439,7 @@ public class WorkspaceDashboardService
                 "✔ File explorer opened"
             },
             "Opened just now"));
+        NotifyStateChanged();
         return _terminals.ToList();
     }
 
@@ -453,6 +458,7 @@ public class WorkspaceDashboardService
                 "Ready for commands"
             },
             "Restored just now"));
+        NotifyStateChanged();
         return _terminals.ToList();
     }
 
@@ -473,6 +479,7 @@ public class WorkspaceDashboardService
                 "✔ Ready"
             },
             "Started just now"));
+        NotifyStateChanged();
         return _terminals.ToList();
     }
 
@@ -1035,5 +1042,10 @@ public class WorkspaceDashboardService
         }
 
         return list;
+    }
+
+    private void NotifyStateChanged()
+    {
+        OnStateChanged?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -2,6 +2,7 @@
 @using Corker.Core.Entities
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@implements IDisposable
 
 <section class="board-header">
     <div class="board-title">
@@ -173,7 +174,17 @@
 
     protected override async Task OnInitializedAsync()
     {
+        DashboardService.OnStateChanged += HandleStateChanged;
         await ReloadAsync();
+    }
+
+    private async void HandleStateChanged(object? sender, EventArgs e)
+    {
+        await InvokeAsync(async () =>
+        {
+            await ReloadAsync();
+            StateHasChanged();
+        });
     }
 
     private async Task ReloadAsync()
@@ -240,5 +251,10 @@
             "done" => "done",
             _ => "planning"
         };
+    }
+
+    public void Dispose()
+    {
+        DashboardService.OnStateChanged -= HandleStateChanged;
     }
 }

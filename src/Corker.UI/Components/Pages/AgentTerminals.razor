@@ -1,6 +1,8 @@
 @page "/agent-terminals"
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@inject IJSRuntime JSRuntime
+@implements IDisposable
 
 <section class="page-header">
     <div>
@@ -37,7 +39,7 @@
             </div>
             <div class="terminal-title">@_activeTerminal.Name</div>
         </header>
-        <div class="terminal-preview" style="flex: 1; overflow-y: auto;">
+        <div class="terminal-preview" style="flex: 1; overflow-y: auto;" @ref="_terminalOutputRef">
             @foreach (var line in _activeTerminal.Lines)
             {
                 <div style="font-family: monospace;">
@@ -63,6 +65,7 @@ else
 @code {
     private IReadOnlyList<TerminalSnapshot> _terminals = Array.Empty<TerminalSnapshot>();
     private TerminalSnapshot? _activeTerminal;
+    private ElementReference _terminalOutputRef;
 
     protected override async Task OnInitializedAsync()
     {
@@ -71,6 +74,42 @@ else
         {
             _activeTerminal = _terminals[0];
         }
+
+        DashboardService.OnStateChanged += HandleStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_activeTerminal != null)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("scrollToBottom", _terminalOutputRef);
+            }
+            catch
+            {
+                // Ignore JS errors during navigation/prerendering
+            }
+        }
+    }
+
+    private async void HandleStateChanged(object? sender, EventArgs e)
+    {
+        // Preserve selection if possible
+        var currentId = _activeTerminal?.Id;
+        _terminals = await DashboardService.GetTerminalsAsync();
+
+        if (currentId.HasValue)
+        {
+            var match = _terminals.FirstOrDefault(t => t.Id == currentId.Value);
+            if (match != null) _activeTerminal = match;
+        }
+        else if (_terminals.Count > 0 && _activeTerminal == null)
+        {
+            _activeTerminal = _terminals[0];
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private void SelectTerminal(TerminalSnapshot terminal)
@@ -94,5 +133,10 @@ else
     {
         _terminals = await DashboardService.CreateTerminalAsync();
         if (_terminals.Count > 0) _activeTerminal = _terminals[0];
+    }
+
+    public void Dispose()
+    {
+        DashboardService.OnStateChanged -= HandleStateChanged;
     }
 }
