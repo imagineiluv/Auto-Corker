@@ -8,11 +8,13 @@ namespace Corker.Infrastructure.Git;
 public class GitService : IGitService
 {
     private readonly ILogger<GitService> _logger;
+    private readonly IProcessService _processService;
     private string _currentRepoPath;
 
-    public GitService(ILogger<GitService> logger)
+    public GitService(ILogger<GitService> logger, IProcessService processService)
     {
         _logger = logger;
+        _processService = processService;
         // Default to current directory if not set, though Init/Clone usually sets it
         _currentRepoPath = Directory.GetCurrentDirectory();
     }
@@ -68,13 +70,45 @@ public class GitService : IGitService
         return Task.CompletedTask;
     }
 
-    public Task CreateWorktreeAsync(string branchName)
+    public async Task CreateWorktreeAsync(string branchName)
     {
         _logger.LogInformation("Creating worktree for branch {BranchName}", branchName);
-        // Worktree implementation using LibGit2Sharp is complex as it's not fully supported in the high-level API yet
-        // or requires raw git commands.
-        // For now, we will simulate worktree by cloning to a sibling directory or just using branches.
-        // Let's stick to simple branching in Phase 1.
-        return Task.CompletedTask;
+
+        if (string.IsNullOrWhiteSpace(branchName) || branchName.Contains("..") || branchName.Any(c => Path.GetInvalidFileNameChars().Contains(c) && c != '/'))
+        {
+            throw new ArgumentException("Invalid branch name", nameof(branchName));
+        }
+
+        // Parent directory strategy
+        var parentDir = Directory.GetParent(_currentRepoPath)?.FullName;
+        if (parentDir == null)
+        {
+            throw new InvalidOperationException("Cannot create worktree: Current repo has no parent directory.");
+        }
+
+        // Sanitize branch name for folder (replace / with -)
+        var folderName = branchName.Replace('/', '-');
+        var worktreePath = Path.Combine(parentDir, folderName);
+
+        if (Directory.Exists(worktreePath))
+        {
+            _logger.LogWarning("Worktree directory {Path} already exists. Skipping creation.", worktreePath);
+            return;
+        }
+
+        // Use git CLI
+        // git worktree add -b <branch> <path> <commit-ish>
+        // We assume HEAD.
+        var args = $"worktree add -b {branchName} \"{worktreePath}\" HEAD";
+
+        var result = await _processService.ExecuteCommandAsync("git", args, _currentRepoPath);
+
+        if (result.ExitCode != 0)
+        {
+             _logger.LogError("Failed to create worktree. Exit: {ExitCode}, Error: {Error}", result.ExitCode, result.Error);
+             throw new InvalidOperationException($"Git worktree creation failed: {result.Error}");
+        }
+
+        _logger.LogInformation("Worktree created at {Path}", worktreePath);
     }
 }
