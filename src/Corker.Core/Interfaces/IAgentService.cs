@@ -10,6 +10,7 @@ public interface IAgentService
     Task<IReadOnlyList<AgentTask>> GetTasksAsync();
 
     // Log streaming
+    event EventHandler? OnTaskUpdated;
     event EventHandler<string> OnLogReceived;
     Task<IReadOnlyList<string>> GetLogsAsync();
 }

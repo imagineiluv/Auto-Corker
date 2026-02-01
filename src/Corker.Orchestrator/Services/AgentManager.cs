@@ -13,6 +13,7 @@ public class AgentManager : IAgentService
     private readonly ITaskRepository _repository;
     private readonly ILogger<AgentManager> _logger;
 
+    public event EventHandler? OnTaskUpdated;
     public event EventHandler<string>? OnLogReceived;
 
     public AgentManager(
@@ -40,6 +41,7 @@ public class AgentManager : IAgentService
 
         await _repository.CreateAsync(task);
         AddLog($"Created task: {title}");
+        OnTaskUpdated?.Invoke(this, EventArgs.Empty);
         return task;
     }
 
@@ -51,6 +53,7 @@ public class AgentManager : IAgentService
             task.AssignedAgentId = agentId;
             await _repository.UpdateAsync(task);
             AddLog($"Assigned task {taskId} to agent {agentId}");
+            OnTaskUpdated?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -62,6 +65,7 @@ public class AgentManager : IAgentService
         task.Status = status;
         await _repository.UpdateAsync(task);
         AddLog($"Updated task {taskId} status to {status}");
+        OnTaskUpdated?.Invoke(this, EventArgs.Empty);
 
         // TRIGGER THE AGENT LOOP
         if (status == Core.Entities.TaskStatus.InProgress)
@@ -111,6 +115,8 @@ public class AgentManager : IAgentService
 
             // Update status back on the main thread context if needed, but here we just update memory
             task.Status = Core.Entities.TaskStatus.Review;
+            await _repository.UpdateAsync(task);
+            OnTaskUpdated?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {

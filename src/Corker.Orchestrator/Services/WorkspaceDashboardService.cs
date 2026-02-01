@@ -6,8 +6,10 @@ using TaskStatus = Corker.Core.Entities.TaskStatus;
 
 namespace Corker.Orchestrator.Services;
 
-public class WorkspaceDashboardService
+public class WorkspaceDashboardService : IDisposable
 {
+    public event Action? OnStateChanged;
+
     private readonly IAgentService _agentService;
     private readonly ILLMService _llmService;
     private readonly ILLMStatusProvider _llmStatusProvider;
@@ -53,6 +55,42 @@ public class WorkspaceDashboardService
         _settingsService = settingsService;
         _repository = repository;
         _logger = logger;
+
+        _agentService.OnLogReceived += HandleLogReceived;
+        _agentService.OnTaskUpdated += HandleTaskUpdated;
+    }
+
+    public void Dispose()
+    {
+        _agentService.OnLogReceived -= HandleLogReceived;
+        _agentService.OnTaskUpdated -= HandleTaskUpdated;
+    }
+
+    private void HandleTaskUpdated(object? sender, EventArgs e)
+    {
+        OnStateChanged?.Invoke();
+    }
+
+    private void HandleLogReceived(object? sender, string log)
+    {
+        // For UI demo purposes, append to the first active terminal
+        if (_terminals.Count > 0)
+        {
+            var active = _terminals[0];
+            var newLines = active.Lines.ToList();
+            newLines.Add(log);
+
+            // Keep buffer size reasonable
+            if (newLines.Count > 100) newLines.RemoveAt(0);
+
+            _terminals[0] = active with
+            {
+                Lines = newLines.ToArray(),
+                ActivityLabel = "Receiving logs..."
+            };
+
+            OnStateChanged?.Invoke();
+        }
     }
 
     public async Task<IReadOnlyList<KanbanColumn>> GetKanbanAsync()
