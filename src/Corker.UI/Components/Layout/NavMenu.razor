@@ -1,4 +1,6 @@
-﻿@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components
+@using Corker.Core.Interfaces
+@inject ISettingsService SettingsService
 
 <div class="sidebar-header">
     <div class="app-brand">Corker</div>
@@ -9,9 +11,9 @@
     <div class="sidebar-label">Project</div>
     <button class="project-selector" type="button">
         <span class="project-dot"></span>
-        autonomous-coding
+        @_projectName
     </button>
-    <span class="project-path">/Users/yourname/projects/auto-corker</span>
+    <span class="project-path" title="@_projectPath">@ShortenPath(_projectPath)</span>
 </div>
 
 <nav class="sidebar-nav">
@@ -84,6 +86,36 @@
 </div>
 
 @code {
+    private string _projectName = "Select Project";
+    private string _projectPath = "No repository selected";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var settings = await SettingsService.LoadAsync();
+            if (!string.IsNullOrEmpty(settings.RepoPath))
+            {
+                _projectPath = settings.RepoPath;
+                _projectName = System.IO.Path.GetFileName(settings.RepoPath.TrimEnd(System.IO.Path.DirectorySeparatorChar));
+            }
+        }
+        catch
+        {
+            // Ignore for design time / initial load
+        }
+    }
+
+    private string ShortenPath(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return "";
+        if (path.Length > 30)
+        {
+            return "..." + path.Substring(path.Length - 27);
+        }
+        return path;
+    }
+
     private static class Icons
     {
         public const string Kanban = "<svg viewBox='0 0 20 20' fill='currentColor'><path d='M4 3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2V3H4zm6 0H8v14h2V3zm6 0h-2v14h2a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z'/></svg>";

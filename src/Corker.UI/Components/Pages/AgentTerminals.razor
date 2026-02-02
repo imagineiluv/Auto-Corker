@@ -1,6 +1,7 @@
 @page "/agent-terminals"
 @using Corker.Orchestrator.Models
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
+@inject IJSRuntime JS
 
 <section class="page-header">
     <div>
@@ -29,7 +30,7 @@
 
 @if (_activeTerminal != null)
 {
-    <article class="terminal-card" style="height: 60vh;">
+    <article class="terminal-card full-height">
         <header class="terminal-header">
             <div class="terminal-badges">
                 <span class="pill green">Claude</span>
@@ -37,11 +38,11 @@
             </div>
             <div class="terminal-title">@_activeTerminal.Name</div>
         </header>
-        <div class="terminal-preview" style="flex: 1; overflow-y: auto;">
+        <div class="terminal-preview" id="terminal-output">
             @foreach (var line in _activeTerminal.Lines)
             {
-                <div style="font-family: monospace;">
-                    <span style="color: #5c7cff;">$</span> <code>@line</code>
+                <div class="terminal-line">
+                    <span class="prompt">$</span> <code>@line</code>
                 </div>
             }
         </div>
@@ -60,6 +61,30 @@ else
     </div>
 }
 
+<style>
+    .full-height {
+        height: calc(100vh - 240px);
+        display: flex;
+        flex-direction: column;
+    }
+    .terminal-preview {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        background: rgba(10, 10, 12, 0.5);
+    }
+    .terminal-line {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        line-height: 1.5;
+        white-space: pre-wrap;
+    }
+    .prompt {
+        color: #5c7cff;
+        margin-right: 8px;
+        user-select: none;
+    }
+</style>
+
 @code {
     private IReadOnlyList<TerminalSnapshot> _terminals = Array.Empty<TerminalSnapshot>();
     private TerminalSnapshot? _activeTerminal;
@@ -70,6 +95,21 @@ else
         if (_terminals.Count > 0)
         {
             _activeTerminal = _terminals[0];
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_activeTerminal != null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("window.scrollToBottom", "terminal-output");
+            }
+            catch
+            {
+                // Ignore JS errors during navigation
+            }
         }
     }
 

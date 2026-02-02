@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
 <div class="app-shell">
     <aside class="app-sidebar">
@@ -6,6 +6,15 @@
     </aside>
 
     <main class="app-main">
-        @Body
+        <ErrorBoundary>
+            <ChildContent>
+                @Body
+            </ChildContent>
+            <ErrorContent>
+                <div class="blazor-error-boundary">
+                    An error has occurred.
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
     </main>
 </div>
