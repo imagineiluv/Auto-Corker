@@ -4,8 +4,10 @@ public class AppSettings
 {
     // Model Settings
     public string ModelPath { get; set; } = "models/lfm2.gguf";
+    public string ModelDownloadUrl { get; set; } = "https://github.com/imagineiluv/Auto-Corker/raw/main/LFM2-1.2B-Q4_K_M.gguf";
     public int ContextWindow { get; set; } = 4096;
     public string AIBackend { get; set; } = "Cpu"; // "Cpu" or "Cuda"
+    public int GpuLayerCount { get; set; } = 99;
 
     // Project Settings
     public string RepoPath { get; set; } = string.Empty;

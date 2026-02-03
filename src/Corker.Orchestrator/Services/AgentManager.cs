@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Corker.Core.Entities;
 using Corker.Core.Interfaces;
 using Corker.Orchestrator.Agents;
@@ -12,6 +13,7 @@ public class AgentManager : IAgentService
     private readonly CoderAgent _coderAgent;
     private readonly ITaskRepository _repository;
     private readonly ILogger<AgentManager> _logger;
+    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _runningTasks = new();
 
     public event EventHandler<string>? OnLogReceived;
 
@@ -63,11 +65,21 @@ public class AgentManager : IAgentService
         await _repository.UpdateAsync(task);
         AddLog($"Updated task {taskId} status to {status}");
 
+        // Handle cancellation if task is moving out of progress
+        if (status != Core.Entities.TaskStatus.InProgress && _runningTasks.TryRemove(taskId, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
+        }
+
         // TRIGGER THE AGENT LOOP
         if (status == Core.Entities.TaskStatus.InProgress)
         {
+            var newCts = new CancellationTokenSource();
+            _runningTasks.TryAdd(taskId, newCts);
+
             // Run in background so we don't block the UI
-            _ = RunAgentLoopAsync(task);
+            _ = RunAgentLoopAsync(task, newCts.Token);
         }
     }
 
@@ -89,33 +101,58 @@ public class AgentManager : IAgentService
         OnLogReceived?.Invoke(this, message);
     }
 
-    private async Task RunAgentLoopAsync(AgentTask task)
+    private async Task RunAgentLoopAsync(AgentTask task, CancellationToken cancellationToken)
     {
         AddLog($"Starting Agent Loop for task: {task.Title}");
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             // 1. Planning
             AddLog("Phase 1: Planning...");
             var plan = await _plannerAgent.CreatePlanAsync(task.Description);
             AddLog($"Plan Generated: {plan.Substring(0, Math.Min(50, plan.Length))}...");
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             // 2. Coding
             AddLog("Phase 2: Coding...");
             // We pass the Plan + Description to the Coder
             var instruction = $"Task: {task.Title}\nDescription: {task.Description}\n\nPlan:\n{plan}";
-            await _coderAgent.ExecuteAsync(instruction);
+            await _coderAgent.ExecuteAsync(instruction); // Assuming agents will eventually support CancellationToken
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             // 3. Review (Mock for now, just mark as Review)
             AddLog("Phase 3: Implementation Complete. Moving to Review.");
 
             // Update status back on the main thread context if needed, but here we just update memory
             task.Status = Core.Entities.TaskStatus.Review;
+            await _repository.UpdateAsync(task);
+
+            // Cleanup
+            if (_runningTasks.TryRemove(task.Id, out var cts))
+            {
+                cts.Dispose();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            AddLog("Agent Loop Cancelled.");
         }
         catch (Exception ex)
         {
             AddLog($"Error in Agent Loop: {ex.Message}");
             _logger.LogError(ex, "Error in Agent Loop for task {TaskId}", task.Id);
+
+            task.Status = Core.Entities.TaskStatus.Failed;
+            await _repository.UpdateAsync(task);
+
+            if (_runningTasks.TryRemove(task.Id, out var cts))
+            {
+                cts.Dispose();
+            }
         }
     }
 }
