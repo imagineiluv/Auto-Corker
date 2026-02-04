@@ -9,7 +9,9 @@ public interface IAgentService
     Task UpdateTaskStatusAsync(Guid taskId, Entities.TaskStatus status);
     Task<IReadOnlyList<AgentTask>> GetTasksAsync();
 
-    // Log streaming
+    // Events
     event EventHandler<string> OnLogReceived;
+    event EventHandler<AgentTask> OnTaskUpdated;
+
     Task<IReadOnlyList<string>> GetLogsAsync();
 }

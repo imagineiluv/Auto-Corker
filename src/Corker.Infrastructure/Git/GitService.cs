@@ -68,13 +68,62 @@ public class GitService : IGitService
         return Task.CompletedTask;
     }
 
-    public Task CreateWorktreeAsync(string branchName)
+    public async Task CreateWorktreeAsync(string branchName)
     {
         _logger.LogInformation("Creating worktree for branch {BranchName}", branchName);
-        // Worktree implementation using LibGit2Sharp is complex as it's not fully supported in the high-level API yet
-        // or requires raw git commands.
-        // For now, we will simulate worktree by cloning to a sibling directory or just using branches.
-        // Let's stick to simple branching in Phase 1.
-        return Task.CompletedTask;
+
+        if (branchName.Contains("..") || branchName.Intersect(Path.GetInvalidFileNameChars()).Any())
+        {
+            throw new ArgumentException("Invalid branch name");
+        }
+
+        // Create worktree in a sibling directory to avoid nesting
+        var worktreeDir = Path.Combine(Directory.GetParent(_currentRepoPath)?.FullName ?? _currentRepoPath, ".corker", "worktrees", branchName);
+
+        // Ensure parent dir exists
+        Directory.CreateDirectory(Path.GetDirectoryName(worktreeDir)!);
+
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "git",
+            // Create new branch based on HEAD
+            Arguments = $"worktree add -b {branchName} \"{worktreeDir}\" HEAD",
+            WorkingDirectory = _currentRepoPath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new System.Diagnostics.Process { StartInfo = startInfo };
+        process.Start();
+
+        var output = await process.StandardOutput.ReadToEndAsync();
+        var error = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            _logger.LogError("Failed to create worktree: {Error}", error);
+            // If branch already exists, try checking it out instead of creating (-b)
+            if (error.Contains("already exists"))
+            {
+                 _logger.LogInformation("Branch exists, trying checkout existing branch into worktree...");
+                 startInfo.Arguments = $"worktree add \"{worktreeDir}\" {branchName}";
+                 using var retryProcess = new System.Diagnostics.Process { StartInfo = startInfo };
+                 retryProcess.Start();
+                 await retryProcess.WaitForExitAsync();
+                 if (retryProcess.ExitCode != 0)
+                 {
+                     throw new InvalidOperationException($"Failed to create worktree (retry): {await retryProcess.StandardError.ReadToEndAsync()}");
+                 }
+            }
+            else
+            {
+                throw new InvalidOperationException($"Failed to create worktree: {error}");
+            }
+        }
+
+        _logger.LogInformation("Worktree created at {Path}", worktreeDir);
     }
 }

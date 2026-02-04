@@ -1,6 +1,7 @@
 @page "/"
 @using Corker.Core.Entities
 @using Corker.Orchestrator.Models
+@implements IDisposable
 @inject Corker.Orchestrator.Services.WorkspaceDashboardService DashboardService
 
 <section class="board-header">
@@ -173,7 +174,22 @@
 
     protected override async Task OnInitializedAsync()
     {
+        DashboardService.OnKanbanUpdated += HandleKanbanUpdate;
         await ReloadAsync();
+    }
+
+    public void Dispose()
+    {
+        DashboardService.OnKanbanUpdated -= HandleKanbanUpdate;
+    }
+
+    private void HandleKanbanUpdate()
+    {
+        InvokeAsync(async () =>
+        {
+            await ReloadAsync();
+            StateHasChanged();
+        });
     }
 
     private async Task ReloadAsync()
