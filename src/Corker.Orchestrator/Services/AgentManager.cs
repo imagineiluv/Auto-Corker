@@ -14,6 +14,7 @@ public class AgentManager : IAgentService
     private readonly ILogger<AgentManager> _logger;
 
     public event EventHandler<string>? OnLogReceived;
+    public event EventHandler<AgentTask>? OnTaskUpdated;
 
     public AgentManager(
         ILLMService llmService,
@@ -62,6 +63,7 @@ public class AgentManager : IAgentService
         task.Status = status;
         await _repository.UpdateAsync(task);
         AddLog($"Updated task {taskId} status to {status}");
+        OnTaskUpdated?.Invoke(this, task);
 
         // TRIGGER THE AGENT LOOP
         if (status == Core.Entities.TaskStatus.InProgress)
@@ -111,11 +113,17 @@ public class AgentManager : IAgentService
 
             // Update status back on the main thread context if needed, but here we just update memory
             task.Status = Core.Entities.TaskStatus.Review;
+            await _repository.UpdateAsync(task);
+            OnTaskUpdated?.Invoke(this, task);
         }
         catch (Exception ex)
         {
             AddLog($"Error in Agent Loop: {ex.Message}");
             _logger.LogError(ex, "Error in Agent Loop for task {TaskId}", task.Id);
+
+            task.Status = Core.Entities.TaskStatus.Failed;
+            await _repository.UpdateAsync(task);
+            OnTaskUpdated?.Invoke(this, task);
         }
     }
 }

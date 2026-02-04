@@ -39,6 +39,8 @@ public class WorkspaceDashboardService
     private bool _roadmapShared;
     private bool _seeded;
 
+    public event Action? OnKanbanUpdated;
+
     public WorkspaceDashboardService(
         IAgentService agentService,
         ILLMService llmService,
@@ -53,6 +55,8 @@ public class WorkspaceDashboardService
         _settingsService = settingsService;
         _repository = repository;
         _logger = logger;
+
+        _agentService.OnTaskUpdated += (s, e) => OnKanbanUpdated?.Invoke();
     }
 
     public async Task<IReadOnlyList<KanbanColumn>> GetKanbanAsync()
