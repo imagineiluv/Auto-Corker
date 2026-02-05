@@ -57,6 +57,14 @@ public class ProcessSandboxService : IProcessService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to execute command {Command}", command);
+            try
+            {
+                process.Kill(true);
+            }
+            catch
+            {
+                // Ignore errors during kill (e.g. access denied or already exited)
+            }
             return (-1, string.Empty, ex.Message);
         }
     }
