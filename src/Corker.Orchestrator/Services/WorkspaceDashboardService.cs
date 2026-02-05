@@ -67,7 +67,7 @@ public class WorkspaceDashboardService
             new("in-progress", "In Progress", cards.Where(card => card.Status == TaskStatus.InProgress).ToList()),
             new("ai-review", "AI Review", new List<TaskCard>()), // Could map to Review status if we differentiate
             new("human-review", "Human Review", cards.Where(card => card.Status == TaskStatus.Review).ToList()),
-            new("done", "Done", cards.Where(card => card.Status == TaskStatus.Done).ToList())
+            new("done", "Done", cards.Where(card => card.Status == TaskStatus.Done || card.Status == TaskStatus.Failed).ToList())
         };
     }
 
@@ -894,6 +894,7 @@ public class WorkspaceDashboardService
             TaskStatus.InProgress => "Running",
             TaskStatus.Review => "Needs Review",
             TaskStatus.Done => "Complete",
+            TaskStatus.Failed => "Failed",
             _ => "Pending"
         };
 
@@ -903,6 +904,7 @@ public class WorkspaceDashboardService
             TaskStatus.InProgress => "green",
             TaskStatus.Review => "purple",
             TaskStatus.Done => "green",
+            TaskStatus.Failed => "warning",
             _ => string.Empty
         };
 
