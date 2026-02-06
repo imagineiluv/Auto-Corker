@@ -8,11 +8,13 @@ namespace Corker.Infrastructure.Git;
 public class GitService : IGitService
 {
     private readonly ILogger<GitService> _logger;
+    private readonly IProcessService? _processService; // Optional for backward compat if needed, but best required
     private string _currentRepoPath;
 
-    public GitService(ILogger<GitService> logger)
+    public GitService(ILogger<GitService> logger, IProcessService processService)
     {
         _logger = logger;
+        _processService = processService;
         // Default to current directory if not set, though Init/Clone usually sets it
         _currentRepoPath = Directory.GetCurrentDirectory();
     }
@@ -68,13 +70,57 @@ public class GitService : IGitService
         return Task.CompletedTask;
     }
 
-    public Task CreateWorktreeAsync(string branchName)
+    public async Task CreateWorktreeAsync(string branchName)
     {
         _logger.LogInformation("Creating worktree for branch {BranchName}", branchName);
-        // Worktree implementation using LibGit2Sharp is complex as it's not fully supported in the high-level API yet
-        // or requires raw git commands.
-        // For now, we will simulate worktree by cloning to a sibling directory or just using branches.
-        // Let's stick to simple branching in Phase 1.
-        return Task.CompletedTask;
+
+        if (_processService == null)
+        {
+            _logger.LogWarning("ProcessService not available. Falling back to simple branching.");
+            await CheckoutBranchAsync(branchName);
+            return;
+        }
+
+        // Validate branch name to prevent path traversal
+        if (branchName.Contains(".."))
+        {
+            throw new ArgumentException("Invalid branch name.");
+        }
+
+        // Sanitize branch name for folder usage (e.g. feature/login -> feature-login)
+        var folderName = branchName;
+        foreach (var c in Path.GetInvalidFileNameChars())
+        {
+            folderName = folderName.Replace(c, '-');
+        }
+
+        var worktreesDir = Path.Combine(_currentRepoPath, "../.corker/worktrees");
+        var worktreePath = Path.Combine(worktreesDir, folderName);
+
+        // Ensure worktree directory exists (parent)
+        if (!Directory.Exists(worktreesDir))
+        {
+            Directory.CreateDirectory(worktreesDir);
+        }
+
+        // Use git CLI to create worktree
+        // git worktree add <path> <branch>
+        var args = $"worktree add \"{worktreePath}\" \"{branchName}\"";
+
+        try
+        {
+            var result = await _processService.ExecuteCommandAsync("git", args, _currentRepoPath);
+            if (result.ExitCode != 0)
+            {
+                 _logger.LogError("Failed to create worktree: {Error}", result.Error);
+                 throw new Exception($"Failed to create worktree: {result.Error}");
+            }
+             _logger.LogInformation("Worktree created at {Path}", worktreePath);
+        }
+        catch (Exception ex)
+        {
+             _logger.LogError(ex, "Exception creating worktree");
+             throw;
+        }
     }
 }
